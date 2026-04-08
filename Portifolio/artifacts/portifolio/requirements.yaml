@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "For page transitions, scroll animations, and interactive elements"
+  "react-simple-typewriter": "For the animated typing effect in the hero section"
+
+images:
+  - path: "artifacts/portfolio/public/images/hero-bg.png"
+    description: "Abstract dark tech background with subtle glowing cyan and blue neon geometric lines, mesh gradients, very dark and sleek, high-end developer aesthetic"
+    aspect_ratio: "16:9"
+  - path: "artifacts/portfolio/public/images/avatar.png"
+    description: "Sleek minimalist 3D illustrated avatar of a developer, cinematic cyber lighting, subtle cyan and purple rim lights, dark background, premium quality"
+    aspect_ratio: "1:1"
+
+notes:
+  - Application defaults to dark mode on startup
+  - Assuming external GitHub avatar URL or placeholder for project displays

@@ -1,0 +1,124 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: github
+    description: GitHub integration
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /github/repos:
+    get:
+      operationId: getGithubRepos
+      tags: [github]
+      summary: Get GitHub repositories
+      description: Returns public repositories for a GitHub user
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+          description: GitHub username
+      responses:
+        "200":
+          description: List of repositories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GithubRepo"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    GithubRepo:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        full_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        html_url:
+          type: string
+        homepage:
+          type: string
+          nullable: true
+        stargazers_count:
+          type: integer
+        forks_count:
+          type: integer
+        watchers_count:
+          type: integer
+        language:
+          type: string
+          nullable: true
+        topics:
+          type: array
+          items:
+            type: string
+        updated_at:
+          type: string
+        fork:
+          type: boolean
+        archived:
+          type: boolean
+      required:
+        - id
+        - name
+        - full_name
+        - html_url
+        - stargazers_count
+        - forks_count
+        - watchers_count
+        - fork
+        - archived
+        - updated_at
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

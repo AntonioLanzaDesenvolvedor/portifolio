@@ -1,0 +1,76 @@
+{
+  "nav": {
+    "about": "Sobre",
+    "skills": "Habilidades",
+    "projects": "Projetos",
+    "contact": "Contato",
+    "hireMe": "Contato"
+  },
+  "hero": {
+    "badge": "Disponível para oportunidades",
+    "name": "Antônio Lanza",
+    "roles": [
+      "Desenvolvedor Frontend",
+      "React",
+      "TypeScript",
+      "Interfaces Web"
+    ],
+    "description": "Desenvolvo aplicações web com foco em performance, clareza de código e boa experiência de uso. Trabalho com React e TypeScript na construção de interfaces estáveis e escaláveis.",
+    "viewWork": "Ver projetos"
+  },
+  "about": {
+    "title": "Sobre",
+    "subtitle": "Desenvolvedor frontend com experiência na construção de aplicações web modernas.",
+    "heading": "Foco em execução, qualidade e previsibilidade.",
+    "description1": "Atuo no desenvolvimento de interfaces utilizando React, TypeScript e Tailwind CSS. Tenho experiência na construção de aplicações completas, trabalhando com organização de código, componentização e integração com APIs.",
+    "description2": "Meu foco é entregar código simples, legível e fácil de manter. Busco soluções diretas, evitando complexidade desnecessária, e priorizando performance e estabilidade. Trabalho bem em equipe e tenho boa comunicação técnica.",
+    "stats": {
+      "experience": "Anos de experiência",
+      "projects": "Projetos entregues",
+      "coffee": "Horas de desenvolvimento",
+      "openSource": "Contribuições"
+    }
+  },
+  "skills": {
+    "title": "Tecnologias",
+    "subtitle": "Principais ferramentas utilizadas no desenvolvimento.",
+    "categories": {
+      "frontend": "Frontend",
+      "ui": "Engenharia de Interface",
+      "tools": "Ferramentas e Fluxo"
+    },
+    "ui": {
+      "responsive": "Design Responsivo",
+      "accessibility": "Acessibilidade",
+      "architecture": "Arquitetura de Componentes",
+      "performance": "Otimização de Performance"
+    },
+    "tools": {
+      "api": "Integração com APIs"
+    }
+  },
+  "projects": {
+    "title": "Projetos",
+    "subtitle": "Projetos desenvolvidos com foco em aplicação real.",
+    "search": "Buscar projetos...",
+    "viewOnGithub": "Ver no GitHub",
+    "language": "Tecnologias",
+    "stars": "Stars",
+    "noResults": "Nenhum projeto encontrado."
+  },
+  "contact": {
+    "title": "Contato",
+    "subtitle": "Disponível para projetos, oportunidades ou parcerias.",
+    "name": "Nome",
+    "email": "Email",
+    "message": "Mensagem",
+    "send": "Enviar",
+    "sending": "Enviando...",
+    "success": "Mensagem enviada.",
+    "error": "Erro ao enviar."
+  },
+  "footer": {
+    "credit": "Antônio Lanza",
+    "rights": "© 2026"
+  }
+}

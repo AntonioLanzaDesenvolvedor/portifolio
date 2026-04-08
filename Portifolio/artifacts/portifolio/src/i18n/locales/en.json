@@ -1,0 +1,76 @@
+{
+  "nav": {
+    "about": "About",
+    "skills": "Skills",
+    "projects": "Projects",
+    "contact": "Contact",
+    "hireMe": "Contact"
+  },
+  "hero": {
+    "badge": "Open to opportunities",
+    "name": "Antônio Lanza",
+    "roles": [
+      "Frontend Developer",
+      "React",
+      "TypeScript",
+      "Web Interfaces"
+    ],
+    "description": "I develop web applications focused on performance, clean code, and usability. I work with React and TypeScript to build stable and scalable interfaces.",
+    "viewWork": "View projects"
+  },
+  "about": {
+    "title": "About",
+    "subtitle": "Frontend developer experienced in building modern web applications.",
+    "heading": "Focused on execution, quality, and consistency.",
+    "description1": "I build interfaces using React, TypeScript, and Tailwind CSS. I have experience working on complete applications, including code organization, component architecture, and API integration.",
+    "description2": "My focus is on writing simple, readable, and maintainable code. I prioritize practical solutions, avoiding unnecessary complexity while ensuring performance and reliability. I work well in teams and communicate clearly.",
+    "stats": {
+      "experience": "Years of experience",
+      "projects": "Projects delivered",
+      "coffee": "Hours of development",
+      "openSource": "Contributions"
+    }
+  },
+  "skills": {
+    "title": "Technologies",
+    "subtitle": "Core tools used in development.",
+    "categories": {
+      "frontend": "Frontend",
+      "ui": "UI Engineering",
+      "tools": "Tools & Workflow"
+    },
+    "ui": {
+      "responsive": "Responsive Design",
+      "accessibility": "Accessibility",
+      "architecture": "Component Architecture",
+      "performance": "Performance Optimization"
+    },
+    "tools": {
+      "api": "API Integration"
+    }
+  },
+  "projects": {
+    "title": "Projects",
+    "subtitle": "Projects built with real-world application in mind.",
+    "search": "Search projects...",
+    "viewOnGithub": "View on GitHub",
+    "language": "Technologies",
+    "stars": "Stars",
+    "noResults": "No projects found."
+  },
+  "contact": {
+    "title": "Contact",
+    "subtitle": "Available for projects, opportunities, or collaboration.",
+    "name": "Name",
+    "email": "Email",
+    "message": "Message",
+    "send": "Send",
+    "sending": "Sending...",
+    "success": "Message sent.",
+    "error": "Error sending message."
+  },
+  "footer": {
+    "credit": "Antônio Lanza",
+    "rights": "© 2026"
+  }
+}

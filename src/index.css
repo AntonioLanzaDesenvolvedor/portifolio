@@ -155,28 +155,74 @@
     animation-delay: 4s;
   }
 
-  .entrance-hero {
-    opacity: 0;
-    transform: translate3d(0, 16px, 0);
-  }
-
   .entrance-nav {
     transform: translate3d(0, -12px, 0);
-  }
-
-  html[data-entrance-ready='true'] .entrance-hero {
-    animation: entrance-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
   html[data-entrance-ready='true'] .entrance-nav {
     animation: entrance-nav-slide 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
-  html[data-entrance-reduced='true'] .entrance-hero,
   html[data-entrance-reduced='true'] .entrance-nav {
     animation: none;
     opacity: 1;
     transform: none;
+  }
+
+  /* Hero — Paper Shaders atmosphere + cinematic type */
+  .hero-cinematic .split-word-inner {
+    backface-visibility: hidden;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    padding-block: 0.15em 0.22em;
+    margin-block: -0.15em -0.1em;
+    will-change: transform, opacity;
+    color: transparent;
+  }
+
+  /*
+   * Letter-only silver sweep: gradient is clipped to glyph shapes.
+   * Animating background-position moves the highlight through the letters.
+   */
+  .hero-title-label {
+    background-image: linear-gradient(
+      100deg,
+      #ffffff 0%,
+      #ffffff 38%,
+      #94a3b8 44%,
+      #e2e8f0 47%,
+      #ffffff 50%,
+      #cbd5e1 53%,
+      #64748b 56%,
+      #ffffff 62%,
+      #ffffff 100%
+    );
+    background-size: 250% 100%;
+    background-position: 100% 0%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .hero-cinematic .split-mask {
+    overflow: hidden;
+    padding-bottom: 0.14em;
+    margin-bottom: -0.14em;
+  }
+
+  /* Hide chrome while cinematic title card plays */
+  html[data-hero-intro='playing'] .entrance-nav {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    animation: none !important;
+  }
+
+  html:not([data-entrance-ready='true']):not([data-entrance-reduced='true']) .hero-cinematic {
+    opacity: 0;
   }
 }
 
@@ -185,17 +231,6 @@
   33% { transform: translate(30px, -50px) scale(1.1); }
   66% { transform: translate(-20px, 20px) scale(0.9); }
   100% { transform: translate(0px, 0px) scale(1); }
-}
-
-@keyframes entrance-fade-up {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 16px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
 }
 
 @keyframes entrance-nav-slide {
@@ -246,4 +281,117 @@ html {
 
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Project focus modal — soft space scrollbar */
+.project-modal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125, 211, 252, 0.35) transparent;
+  scrollbar-gutter: stable;
+}
+
+.project-modal-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.project-modal-scroll::-webkit-scrollbar-track {
+  margin: 8px 0;
+  background: transparent;
+}
+
+.project-modal-scroll::-webkit-scrollbar-thumb {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    rgba(186, 230, 253, 0.55),
+    rgba(56, 189, 248, 0.28),
+    rgba(99, 102, 241, 0.35)
+  );
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+}
+
+.project-modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(224, 242, 254, 0.75),
+    rgba(56, 189, 248, 0.5),
+    rgba(129, 140, 248, 0.45)
+  );
+}
+
+/* Hologram projection — transparent cyan glass, fresnel edges, soft banding */
+.project-holo {
+  backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+}
+
+.project-holo-bands {
+  opacity: 0.1;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 3px,
+    rgba(125, 211, 252, 0.07) 3px,
+    rgba(125, 211, 252, 0.07) 4px
+  );
+  mix-blend-mode: screen;
+  animation: project-holo-bands 14s linear infinite;
+}
+
+.project-holo-sheen {
+  background: linear-gradient(
+    125deg,
+    transparent 34%,
+    rgba(186, 230, 253, 0.1) 50%,
+    transparent 62%
+  );
+  background-size: 240% 240%;
+  animation: project-holo-sheen 11s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+
+.project-holo-glow {
+  animation: project-holo-pulse 6.5s ease-in-out infinite;
+}
+
+@keyframes project-holo-bands {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 48px;
+  }
+}
+
+@keyframes project-holo-sheen {
+  0%,
+  100% {
+    background-position: 8% 42%;
+    opacity: 0.28;
+  }
+  50% {
+    background-position: 92% 58%;
+    opacity: 0.48;
+  }
+}
+
+@keyframes project-holo-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.01);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-holo-bands,
+  .project-holo-sheen,
+  .project-holo-glow {
+    animation: none;
+  }
 }

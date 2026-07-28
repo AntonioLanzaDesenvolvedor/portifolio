@@ -30,3 +30,6 @@ Thumbs.db
 
 # Deploy
 .vercel
+
+# Local conversion scratch (Blender portable, source packs)
+tmp-models/

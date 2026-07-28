@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { useMemo, useRef, useState } from 'react';
 import type { IconType } from 'react-icons';
 import {
   SiReact,
@@ -14,123 +14,166 @@ import {
   SiDocker,
   SiRedis,
 } from 'react-icons/si';
-import { SectionHeading } from './SectionHeading';
 import { useI18n } from '@/i18n/i18n';
+import { gsap, useGSAP } from '@/lib/gsap';
+import {
+  SkillsConstellation,
+  type SkillCategoryId,
+  type SkillNode,
+} from '@/components/skills/SkillsConstellation';
+import { cn } from '@/lib/utils';
 
-type SkillItem = {
+type LayoutSeed = {
   id: string;
-  name: string;
+  category: SkillCategoryId;
   Icon: IconType;
   color: string;
-  tint: string;
+  orbit: number;
+  angle: number;
+  orbitSpeed: number;
+  z: number;
+  nameKey: string;
+  descKey: string;
 };
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 14 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.4,
-      ease: [0.22, 1, 0.36, 1] as const,
-      staggerChildren: 0.045,
-      delayChildren: 0.06,
-    },
-  },
-};
+/** Planetary system — same speed on all rings so relative spacing never collapses */
+const LAYOUT: LayoutSeed[] = [
+  // Inner — Frontend (even spacing)
+  { id: 'react', category: 'frontend', Icon: SiReact, color: '#22D3EE', orbit: 0, angle: 0, orbitSpeed: 0.06, z: 0.9, nameKey: 'skills.frontend.react', descKey: 'skills.frontend.reactDesc' },
+  { id: 'next', category: 'frontend', Icon: SiNextdotjs, color: '#E2E8F0', orbit: 0, angle: Math.PI / 2, orbitSpeed: 0.06, z: 0.75, nameKey: 'skills.frontend.next', descKey: 'skills.frontend.nextDesc' },
+  { id: 'mui', category: 'frontend', Icon: SiMui, color: '#007FFF', orbit: 0, angle: Math.PI, orbitSpeed: 0.06, z: 0.65, nameKey: 'skills.frontend.mui', descKey: 'skills.frontend.muiDesc' },
+  { id: 'tailwind', category: 'frontend', Icon: SiTailwindcss, color: '#38BDF8', orbit: 0, angle: (3 * Math.PI) / 2, orbitSpeed: 0.06, z: 0.8, nameKey: 'skills.frontend.tailwind', descKey: 'skills.frontend.tailwindDesc' },
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 8 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] as const },
-  },
-};
+  // Mid — Backend (offset by 45° so it never lines up with inner)
+  { id: 'flask', category: 'backend', Icon: SiFlask, color: '#F8FAFC', orbit: 1, angle: Math.PI / 4, orbitSpeed: 0.06, z: 0.7, nameKey: 'skills.backend.flask', descKey: 'skills.backend.flaskDesc' },
+  { id: 'fastapi', category: 'backend', Icon: SiFastapi, color: '#009688', orbit: 1, angle: (3 * Math.PI) / 4, orbitSpeed: 0.06, z: 0.85, nameKey: 'skills.backend.fastapi', descKey: 'skills.backend.fastapiDesc' },
+  { id: 'postgres', category: 'backend', Icon: SiPostgresql, color: '#3B82F6', orbit: 1, angle: (5 * Math.PI) / 4, orbitSpeed: 0.06, z: 0.8, nameKey: 'skills.backend.postgres', descKey: 'skills.backend.postgresDesc' },
+  { id: 'supabase', category: 'backend', Icon: SiSupabase, color: '#3ECF8E', orbit: 1, angle: (7 * Math.PI) / 4, orbitSpeed: 0.06, z: 0.7, nameKey: 'skills.backend.supabase', descKey: 'skills.backend.supabaseDesc' },
+
+  // Outer — Platform (offset by 22.5° so it never lines up with either ring)
+  { id: 'typescript', category: 'platform', Icon: SiTypescript, color: '#3178C6', orbit: 2, angle: Math.PI / 8, orbitSpeed: 0.06, z: 0.8, nameKey: 'skills.platform.typescript', descKey: 'skills.platform.typescriptDesc' },
+  { id: 'python', category: 'platform', Icon: SiPython, color: '#FFD43B', orbit: 2, angle: (5 * Math.PI) / 8, orbitSpeed: 0.06, z: 0.7, nameKey: 'skills.platform.python', descKey: 'skills.platform.pythonDesc' },
+  { id: 'docker', category: 'platform', Icon: SiDocker, color: '#2496ED', orbit: 2, angle: (9 * Math.PI) / 8, orbitSpeed: 0.06, z: 0.75, nameKey: 'skills.platform.docker', descKey: 'skills.platform.dockerDesc' },
+  { id: 'redis', category: 'platform', Icon: SiRedis, color: '#DC382D', orbit: 2, angle: (13 * Math.PI) / 8, orbitSpeed: 0.06, z: 0.65, nameKey: 'skills.platform.redis', descKey: 'skills.platform.redisDesc' },
+];
+
+const CATEGORY_IDS: SkillCategoryId[] = ['frontend', 'backend', 'platform'];
+
+function prefersReduced() {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 export function Skills() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const sectionRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
+  const [activeCategory, setActiveCategory] = useState<SkillCategoryId | 'all'>('all');
 
-  const categories: { title: string; skills: SkillItem[] }[] = [
-    {
-      title: t('skills.categories.frontend') as string,
-      skills: [
-        { id: 'react', name: t('skills.frontend.react') as string, Icon: SiReact, color: '#22D3EE', tint: 'rgba(34, 211, 238, 0.14)' },
-        { id: 'next', name: t('skills.frontend.next') as string, Icon: SiNextdotjs, color: '#E2E8F0', tint: 'rgba(226, 232, 240, 0.12)' },
-        { id: 'mui', name: t('skills.frontend.mui') as string, Icon: SiMui, color: '#007FFF', tint: 'rgba(0, 127, 255, 0.14)' },
-        { id: 'tailwind', name: t('skills.frontend.tailwind') as string, Icon: SiTailwindcss, color: '#38BDF8', tint: 'rgba(56, 189, 248, 0.14)' },
-      ],
+  const categoryLabels = useMemo(
+    () => ({
+      frontend: t('skills.categories.frontend') as string,
+      backend: t('skills.categories.backend') as string,
+      platform: t('skills.categories.platform') as string,
+    }),
+    [t, language],
+  );
+
+  const skills: SkillNode[] = useMemo(
+    () =>
+      LAYOUT.map((item) => ({
+        id: item.id,
+        name: t(item.nameKey) as string,
+        description: t(item.descKey) as string,
+        category: item.category,
+        categoryLabel: categoryLabels[item.category],
+        Icon: item.Icon,
+        color: item.color,
+        orbit: item.orbit,
+        angle: item.angle,
+        orbitSpeed: item.orbitSpeed,
+        z: item.z,
+      })),
+    [t, language, categoryLabels],
+  );
+
+  useGSAP(
+    () => {
+      const section = sectionRef.current;
+      if (!section || prefersReduced()) return;
+
+      const heading = headingRef.current;
+      const chips = chipsRef.current ? Array.from(chipsRef.current.children) : [];
+
+      gsap.set([heading, ...chips], { autoAlpha: 0, y: 22 });
+
+      const tl = gsap.timeline({
+        defaults: { ease: 'filmOut', force3D: true },
+        scrollTrigger: {
+          trigger: section,
+          start: 'top 75%',
+          once: true,
+        },
+      });
+
+      tl.to(heading, { autoAlpha: 1, y: 0, duration: 0.8 }, 0);
+      tl.to(chips, { autoAlpha: 1, y: 0, duration: 0.45, stagger: 0.06, ease: 'power3.out' }, 0.15);
     },
-    {
-      title: t('skills.categories.backend') as string,
-      skills: [
-        { id: 'flask', name: t('skills.backend.flask') as string, Icon: SiFlask, color: '#F8FAFC', tint: 'rgba(248, 250, 252, 0.1)' },
-        { id: 'fastapi', name: t('skills.backend.fastapi') as string, Icon: SiFastapi, color: '#009688', tint: 'rgba(0, 150, 136, 0.14)' },
-        { id: 'postgres', name: t('skills.backend.postgres') as string, Icon: SiPostgresql, color: '#3B82F6', tint: 'rgba(59, 130, 246, 0.14)' },
-        { id: 'supabase', name: t('skills.backend.supabase') as string, Icon: SiSupabase, color: '#3ECF8E', tint: 'rgba(62, 207, 142, 0.14)' },
-      ],
-    },
-    {
-      title: t('skills.categories.platform') as string,
-      skills: [
-        { id: 'typescript', name: t('skills.platform.typescript') as string, Icon: SiTypescript, color: '#3178C6', tint: 'rgba(49, 120, 198, 0.16)' },
-        { id: 'python', name: t('skills.platform.python') as string, Icon: SiPython, color: '#FFD43B', tint: 'rgba(255, 212, 59, 0.12)' },
-        { id: 'docker', name: t('skills.platform.docker') as string, Icon: SiDocker, color: '#2496ED', tint: 'rgba(36, 150, 237, 0.14)' },
-        { id: 'redis', name: t('skills.platform.redis') as string, Icon: SiRedis, color: '#DC382D', tint: 'rgba(220, 56, 45, 0.14)' },
-      ],
-    },
-  ];
+    { scope: sectionRef, dependencies: [language] },
+  );
 
   return (
-    <section id="skills" className="relative border-y border-border/50 bg-secondary/20 py-16 backdrop-blur-[2px] sm:py-20 lg:py-24">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading title={t('skills.title') as string} subtitle={(t('skills.subtitle') as string) || undefined} />
+    <section
+      ref={sectionRef}
+      id="skills"
+      className="relative z-[5] overflow-hidden bg-transparent pt-10 pb-16 sm:pt-12 sm:pb-20 lg:pt-14 lg:pb-24"
+    >
+      <div
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            'linear-gradient(to bottom, rgba(10,10,15,0.35) 0%, transparent 25%, transparent 75%, rgba(10,10,15,0.25) 100%)',
+        }}
+      />
 
-        <div className="mt-10 grid grid-cols-1 items-stretch gap-5 sm:mt-16 sm:gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-7">
-          {categories.map((category, catIdx) => (
-            <motion.div
-              key={category.title}
-              variants={cardVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, amount: 0.25 }}
-              transition={{ delay: catIdx * 0.05 }}
-              className={`glass-card flex h-full flex-col rounded-2xl p-5 sm:rounded-3xl sm:p-7 ${
-                catIdx === 2 ? 'md:col-span-2 lg:col-span-1' : ''
-              }`}
+      <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="relative z-20 mb-4 flex flex-col items-center text-center sm:mb-5">
+          <h2 ref={headingRef} className="text-2xl font-bold sm:text-3xl md:text-5xl">
+            {t('skills.title') as string}
+          </h2>
+        </div>
+
+        <div
+          ref={chipsRef}
+          className="relative z-20 mb-12 flex flex-wrap items-center justify-center gap-2 sm:mb-14 sm:gap-2.5"
+          role="group"
+          aria-label={t('skills.title') as string}
+        >
+          {CATEGORY_IDS.map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveCategory((prev) => (prev === id ? 'all' : id))}
+              aria-pressed={activeCategory === id}
+              className={cn(
+                'rounded-full border px-3.5 py-1.5 text-xs font-medium tracking-wide transition-colors sm:px-4 sm:text-sm',
+                activeCategory === id
+                  ? 'border-sky-400/40 bg-sky-400/15 text-sky-200'
+                  : 'border-white/10 bg-white/[0.03] text-muted-foreground hover:border-white/20 hover:text-foreground',
+              )}
             >
-              <h3 className="mb-5 min-h-7 text-lg font-bold tracking-tight text-foreground sm:mb-6 sm:text-xl">
-                {category.title}
-              </h3>
-
-              <ul className="flex flex-1 flex-col gap-2.5 sm:gap-3">
-                {category.skills.map((skill) => (
-                  <motion.li key={skill.id} variants={itemVariants}>
-                    <span
-                      className="flex w-full items-center gap-3 whitespace-nowrap rounded-xl border px-3.5 py-3 text-sm font-medium text-foreground transition-transform duration-200 hover:-translate-y-0.5 sm:px-4 sm:py-3.5 sm:text-[0.9375rem]"
-                      style={{
-                        borderColor: `${skill.color}44`,
-                        backgroundColor: skill.tint,
-                      }}
-                    >
-                      <span
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10"
-                        style={{ backgroundColor: `${skill.color}22` }}
-                      >
-                        <skill.Icon
-                          className="h-4 w-4 sm:h-5 sm:w-5"
-                          style={{ color: skill.color }}
-                          aria-hidden
-                        />
-                      </span>
-                      <span>{skill.name}</span>
-                    </span>
-                  </motion.li>
-                ))}
-              </ul>
-            </motion.div>
+              {categoryLabels[id]}
+            </button>
           ))}
         </div>
+
+        <SkillsConstellation
+          skills={skills}
+          activeCategory={activeCategory}
+          closeLabel={t('skills.close') as string}
+          interactHint={t('skills.interactHint') as string}
+          className="relative z-0"
+        />
       </div>
     </section>
   );

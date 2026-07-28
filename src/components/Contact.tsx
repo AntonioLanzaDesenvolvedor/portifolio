@@ -1,6 +1,8 @@
-﻿import { motion } from 'framer-motion';
+﻿import type { ReactNode } from 'react';
+import { motion } from 'framer-motion';
 import { Mail, Github, Linkedin } from 'lucide-react';
 import { SectionHeading } from './SectionHeading';
+import { GalaxyField } from '@/components/effects/GalaxyField';
 import { useI18n } from '@/i18n/i18n';
 
 const EMAIL = 'pernonciniantonio@gmail.com';
@@ -21,10 +23,10 @@ export function Contact() {
   const gmailHref = `https://mail.google.com/mail/?view=cm&fs=1&to=${EMAIL}&su=${subject}&body=${body}`;
 
   return (
-    <section id="contact" className="relative overflow-hidden border-t border-border/50 bg-secondary/15 py-16 sm:py-20 sm:backdrop-blur-[2px] lg:py-24">
-      <div className="pointer-events-none absolute right-0 top-0 hidden h-96 w-96 rounded-full bg-primary/10 blur-[100px] sm:block" />
-      <div className="pointer-events-none absolute bottom-0 left-0 hidden h-96 w-96 rounded-full bg-blue-500/10 blur-[100px] sm:block" />
-
+    <section
+      id="contact"
+      className="relative z-[5] overflow-visible bg-transparent pt-28 pb-16 sm:pt-32 sm:pb-20 lg:pt-36 lg:pb-24"
+    >
       <div className="relative z-10 mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
         <SectionHeading title={t('contact.title') as string} subtitle={t('contact.subtitle') as string} />
 
@@ -45,18 +47,30 @@ export function Contact() {
   );
 }
 
-function ContactLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+/** Shared galaxy wrap for Contact + Footer (used from Home). */
+export function ContactGalaxyZone({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative isolate overflow-hidden">
+      <GalaxyField className="z-0" />
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+}
+
+function ContactLink({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex min-w-0 flex-col items-center gap-2 rounded-xl border border-border/50 bg-background/50 p-3 transition-colors hover:border-primary/30 hover:bg-background sm:gap-3 sm:rounded-2xl sm:p-4"
+      className="group flex min-w-0 flex-col items-center gap-2 rounded-xl border border-sky-400/20 bg-[#070b16]/45 p-3 backdrop-blur-md transition-all hover:border-sky-300/45 hover:bg-[#0a1224]/65 hover:shadow-[0_0_28px_rgba(56,140,200,0.18)] sm:gap-3 sm:rounded-2xl sm:p-4"
     >
-      <div className="rounded-lg bg-secondary p-2.5 text-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground sm:rounded-xl sm:p-3">
+      <div className="rounded-lg border border-sky-400/15 bg-sky-400/10 p-2.5 text-sky-200 transition-colors group-hover:border-sky-300/40 group-hover:bg-sky-400/20 group-hover:text-sky-50 sm:rounded-xl sm:p-3">
         {icon}
       </div>
-      <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground sm:text-sm">{label}</span>
+      <span className="text-xs font-medium text-sky-100/55 transition-colors group-hover:text-sky-50 sm:text-sm">
+        {label}
+      </span>
     </a>
   );
 }

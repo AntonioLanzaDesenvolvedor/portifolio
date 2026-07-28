@@ -7,6 +7,7 @@ export type ProjectItem = {
   highlights: string[];
   tags: string[];
   projectUrl?: string;
+  repoUrl?: string;
 };
 
 export function isProjectItem(value: unknown): value is ProjectItem {

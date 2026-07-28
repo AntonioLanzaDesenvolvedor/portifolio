@@ -41,6 +41,8 @@
   "skills": {
     "title": "Skills",
     "subtitle": "The stack I use in my day-to-day work",
+    "close": "Close",
+    "interactHint": "Drag each orbit · Hover a planet · Click a planet",
     "categories": {
       "frontend": "Frontend",
       "backend": "Backend",
@@ -48,29 +50,44 @@
     },
     "frontend": {
       "react": "React",
+      "reactDesc": "Library for reactive UIs and reusable components — the frontend foundation I ship to production.",
       "next": "Next.js",
+      "nextDesc": "React framework for SSR, routing, and performance — built for scalable web products.",
       "mui": "Material UI",
-      "tailwind": "Tailwind CSS"
+      "muiDesc": "Ready design system for dense, consistent interfaces with fast delivery.",
+      "tailwind": "Tailwind CSS",
+      "tailwindDesc": "Utility-first CSS for fast, responsive, precise UI without scattered stylesheets."
     },
     "backend": {
       "flask": "Flask",
+      "flaskDesc": "Lightweight Python APIs — great for custom REST services and integrations.",
       "fastapi": "FastAPI",
+      "fastapiDesc": "Modern typed APIs with high performance, automatic validation, and excellent DX.",
       "postgres": "PostgreSQL",
-      "supabase": "Supabase"
+      "postgresDesc": "Robust relational database for critical data, complex queries, and multi-tenant systems.",
+      "supabase": "Supabase",
+      "supabaseDesc": "Postgres-backed BaaS with auth and realtime — accelerates MVPs and SaaS products."
     },
     "platform": {
       "typescript": "TypeScript",
+      "typescriptDesc": "Static typing for JavaScript — fewer bugs, safer refactors, and maintainable code.",
       "python": "Python",
+      "pythonDesc": "Versatile language for backends, automation, data, and business integrations.",
       "docker": "Docker",
-      "redis": "Redis"
+      "dockerDesc": "Containers for reproducible environments, predictable deploys, and multi-service architecture.",
+      "redis": "Redis",
+      "redisDesc": "In-memory cache and queues — speed, sessions, and async jobs in production."
     }
   },
   "projects": {
     "title": "Projects",
-    "subtitle": "My most relevant projects",
+    "subtitle": "Production systems I build and maintain",
     "viewImages": "View images",
     "visitSite": "Visit site",
+    "visitRepo": "Visit repository",
     "privateRepo": "Private repository",
+    "close": "Close",
+    "interactHint": "Drag to orbit · Click a satellite",
     "items": [
       {
         "id": "talentista",
@@ -122,6 +139,22 @@
         ],
         "tags": ["Next.js", "TypeScript", "Supabase"],
         "projectUrl": "https://sn800-web.vercel.app"
+      },
+      {
+        "id": "portfolio",
+        "title": "antoniolanza.com",
+        "eyebrow": "Front-end · Personal Portfolio",
+        "period": "2025 — Present",
+        "description": "This very site: a cinematic portfolio with a continuous space atmosphere, clean typography, and light interactions — built to present my work with presence and performance.",
+        "highlights": [
+          "React + Vite + TypeScript with i18n in Portuguese, English, and Spanish.",
+          "Hero and skills in a space atmosphere with cinematic motion (GSAP / R3F).",
+          "Projects section integrated into the galaxy visual narrative.",
+          "SEO, accessibility, and prefers-reduced-motion support.",
+          "Custom design system aligned with the portfolio visual identity."
+        ],
+        "tags": ["React", "TypeScript", "Three.js", "GSAP", "Tailwind"],
+        "repoUrl": "https://github.com/antonio-lanza/portfolio"
       }
     ]
   },

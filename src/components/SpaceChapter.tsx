@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { HeroScene } from '@/components/hero/HeroScene';
 import { AboutGalaxy } from '@/components/about/AboutGalaxy';
-import { useChapterViewportMask } from '@/hooks/use-chapter-viewport-mask';
+import { useChapterViewportFade } from '@/hooks/use-chapter-viewport-fade';
 
 type SpaceChapterProps = {
   children: ReactNode;
@@ -15,13 +15,11 @@ function isMobileViewport() {
 
 /**
  * Same fixed Hero starfield through About on every viewport.
- * Mask tracks the chapter box so the bg ends with Sobre and never
- * paints over Skills (overflow mask — sticky breaks under overflow-x-clip).
+ * Full-viewport layer fades with chapter coverage (no clip/mask geometry).
  */
 export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
   const chapterRef = useRef<HTMLDivElement>(null);
-  const maskRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const [mobile, setMobile] = useState(() => isMobileViewport());
 
   useEffect(() => {
@@ -32,47 +30,44 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
     return () => mq.removeEventListener('change', sync);
   }, []);
 
-  useChapterViewportMask(chapterRef, maskRef, stageRef);
+  useChapterViewportFade(chapterRef, layerRef);
 
   return (
     <>
       <div
-        ref={maskRef}
-        className="pointer-events-none fixed left-0 right-0 z-0 overflow-hidden"
-        style={{ top: 0, height: '100%' }}
+        ref={layerRef}
+        className="pointer-events-none fixed inset-0 z-0 will-change-[opacity]"
         aria-hidden
       >
-        <div ref={stageRef} className="relative h-screen w-full will-change-transform">
-          <div className="absolute inset-0 bg-[#0a0a0f]" />
-          {reduced ? (
-            <AboutGalaxy
-              transparent={false}
-              starCount={700}
-              fieldCount={80}
-              armCount={4}
-              rotationSpeed={0.045}
+        <div className="absolute inset-0 bg-[#0a0a0f]" />
+        {reduced ? (
+          <AboutGalaxy
+            transparent={false}
+            starCount={700}
+            fieldCount={80}
+            armCount={4}
+            rotationSpeed={0.045}
+            className="absolute inset-0 h-full w-full"
+          />
+        ) : (
+          <>
+            <HeroScene
+              reduced={false}
+              count={mobile ? 280 : 400}
               className="absolute inset-0 h-full w-full"
             />
-          ) : (
-            <>
-              <HeroScene
-                reduced={false}
-                count={mobile ? 280 : 400}
+            <div className="absolute inset-0" style={{ opacity: 0.7 }}>
+              <AboutGalaxy
+                transparent
+                starCount={mobile ? 700 : 1000}
+                fieldCount={mobile ? 56 : 80}
+                armCount={4}
+                rotationSpeed={mobile ? 0.035 : 0.045}
                 className="absolute inset-0 h-full w-full"
               />
-              <div className="absolute inset-0" style={{ opacity: 0.7 }}>
-                <AboutGalaxy
-                  transparent
-                  starCount={mobile ? 700 : 1000}
-                  fieldCount={mobile ? 56 : 80}
-                  armCount={4}
-                  rotationSpeed={mobile ? 0.035 : 0.045}
-                  className="absolute inset-0 h-full w-full"
-                />
-              </div>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div ref={chapterRef} className="relative z-[1]">

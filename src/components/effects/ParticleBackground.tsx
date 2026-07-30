@@ -204,7 +204,7 @@ export function ParticleBackground() {
   }, [ready]);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-0" aria-hidden>
+    <div className="pointer-events-none fixed inset-0 z-0 bg-[#0a0a0f]" aria-hidden>
       <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );

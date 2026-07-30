@@ -50,7 +50,7 @@ export function Contact() {
 /** Shared galaxy wrap for Contact + Footer (used from Home). */
 export function ContactGalaxyZone({ children }: { children: ReactNode }) {
   return (
-    <div className="relative isolate overflow-hidden">
+    <div className="relative isolate overflow-hidden bg-[#0a0a0f]">
       <GalaxyField className="z-0" />
       <div className="relative z-10">{children}</div>
     </div>

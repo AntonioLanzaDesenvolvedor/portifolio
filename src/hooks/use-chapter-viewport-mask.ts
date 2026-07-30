@@ -1,10 +1,99 @@
 import { type RefObject, useEffect } from 'react';
 import { getLenisInstance } from '@/lib/lenis-instance';
 
+type MaskEntry = {
+  id: symbol;
+  chapter: HTMLElement;
+  mask: HTMLElement;
+  stage: HTMLElement;
+  lastTop: number;
+  lastHeight: number;
+};
+
+const entries: MaskEntry[] = [];
+let listening = false;
+let lenisBound: { off: (e: 'scroll', cb: () => void) => void } | null = null;
+let lenisRetry = 0;
+
+function applyMask(entry: MaskEntry, top: number, height: number) {
+  if (entry.lastTop === top && entry.lastHeight === height) return;
+  entry.lastTop = top;
+  entry.lastHeight = height;
+  entry.mask.style.top = `${top}px`;
+  entry.mask.style.height = `${height}px`;
+  entry.stage.style.transform = `translate3d(0, ${-top}px, 0)`;
+}
+
 /**
- * Masks a fixed full-viewport background to a chapter's on-screen box.
- * Uses overflow + translate (not clip-path) so mobile GPUs don't flash at
- * section seams. Expands the mask by 1px so adjacent chapters overlap.
+ * Update every registered chapter mask in the same turn.
+ * One shared seam between neighbors — no independent rounding gaps,
+ * no rAF lag behind Lenis scroll (that slip reads as section-edge flicker).
+ */
+function syncAll() {
+  if (entries.length === 0) return;
+
+  const vh = window.innerHeight;
+  const ordered = entries
+    .map((entry) => ({ entry, rect: entry.chapter.getBoundingClientRect() }))
+    .sort((a, b) => a.rect.top - b.rect.top || a.rect.bottom - b.rect.bottom);
+
+  for (let i = 0; i < ordered.length; i++) {
+    const { entry, rect } = ordered[i];
+    let top = Math.max(0, rect.top);
+    let bottom = Math.min(vh, rect.bottom);
+
+    // Shared seam with the next chapter — identical cut, 2px overlap seal
+    if (i < ordered.length - 1) {
+      const nextTop = ordered[i + 1].rect.top;
+      const seam = Math.round((rect.bottom + nextTop) / 2);
+      bottom = Math.min(bottom, seam + 2);
+    }
+    if (i > 0) {
+      const prevBottom = ordered[i - 1].rect.bottom;
+      const seam = Math.round((prevBottom + rect.top) / 2);
+      top = Math.max(top, seam - 2);
+    }
+
+    top = Math.max(0, Math.round(top));
+    bottom = Math.min(vh, Math.round(bottom));
+    const height = Math.max(0, bottom - top);
+    applyMask(entry, top, height);
+  }
+}
+
+function bindLenis() {
+  const lenis = getLenisInstance();
+  if (!lenis || lenisBound) return;
+  lenis.on('scroll', syncAll);
+  lenisBound = lenis;
+}
+
+function ensureListening() {
+  if (listening) return;
+  listening = true;
+  window.addEventListener('scroll', syncAll, { passive: true });
+  window.addEventListener('resize', syncAll);
+  bindLenis();
+  lenisRetry = window.setInterval(() => {
+    bindLenis();
+    if (lenisBound) window.clearInterval(lenisRetry);
+  }, 50);
+  window.setTimeout(() => window.clearInterval(lenisRetry), 2000);
+}
+
+function maybeStopListening() {
+  if (entries.length > 0) return;
+  listening = false;
+  window.clearInterval(lenisRetry);
+  window.removeEventListener('scroll', syncAll);
+  window.removeEventListener('resize', syncAll);
+  lenisBound?.off('scroll', syncAll);
+  lenisBound = null;
+}
+
+/**
+ * Registers a fixed viewport stage masked to a chapter box.
+ * All chapters share one sync pass so section divisions stay sealed.
  */
 export function useChapterViewportMask(
   chapterRef: RefObject<HTMLElement | null>,
@@ -17,65 +106,27 @@ export function useChapterViewportMask(
     const stage = stageRef.current;
     if (!chapter || !mask || !stage) return;
 
-    let raf = 0;
-    let lastTop = Number.NaN;
-    let lastHeight = Number.NaN;
-    let lenisBound: { off: (e: 'scroll', cb: () => void) => void } | null = null;
-
-    const sync = () => {
-      raf = 0;
-      const rect = chapter.getBoundingClientRect();
-      const vh = window.innerHeight;
-
-      // Floor/ceil + 1px seal → no 1px gaps between chapters while scrolling
-      let top = Math.max(0, Math.floor(rect.top));
-      let bottom = Math.min(vh, Math.ceil(rect.bottom));
-      if (top > 0) top = Math.max(0, top - 1);
-      if (bottom < vh) bottom = Math.min(vh, bottom + 1);
-      const height = Math.max(0, bottom - top);
-
-      if (top === lastTop && height === lastHeight) return;
-      lastTop = top;
-      lastHeight = height;
-
-      mask.style.top = `${top}px`;
-      mask.style.height = `${height}px`;
-      stage.style.transform = `translate3d(0, ${-top}px, 0)`;
+    const entry: MaskEntry = {
+      id: Symbol('chapter-mask'),
+      chapter,
+      mask,
+      stage,
+      lastTop: Number.NaN,
+      lastHeight: Number.NaN,
     };
+    entries.push(entry);
+    ensureListening();
 
-    const schedule = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(sync);
-    };
-
-    const bindLenis = () => {
-      const lenis = getLenisInstance();
-      if (!lenis || lenisBound) return;
-      lenis.on('scroll', schedule);
-      lenisBound = lenis;
-    };
-
-    sync();
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule);
-    const ro = new ResizeObserver(schedule);
+    const ro = new ResizeObserver(syncAll);
     ro.observe(chapter);
-
-    // Lenis mounts after children — retry a few frames
-    bindLenis();
-    const lenisRetry = window.setInterval(() => {
-      bindLenis();
-      if (lenisBound) window.clearInterval(lenisRetry);
-    }, 50);
-    window.setTimeout(() => window.clearInterval(lenisRetry), 2000);
+    syncAll();
 
     return () => {
-      if (raf) cancelAnimationFrame(raf);
-      window.clearInterval(lenisRetry);
-      window.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
+      const idx = entries.indexOf(entry);
+      if (idx >= 0) entries.splice(idx, 1);
       ro.disconnect();
-      lenisBound?.off('scroll', schedule);
+      maybeStopListening();
+      syncAll();
     };
   }, [chapterRef, maskRef, stageRef]);
 }

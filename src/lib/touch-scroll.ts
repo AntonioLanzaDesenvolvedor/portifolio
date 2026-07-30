@@ -1,14 +1,43 @@
-type TouchScrollListener = (active: boolean) => void;
+import { getLenisInstance } from '@/lib/lenis-instance';
 
-const listeners = new Set<TouchScrollListener>();
-let active = false;
+type ScrollPauseListener = (paused: boolean) => void;
+
+const listeners = new Set<ScrollPauseListener>();
+let paused = false;
 let touches = 0;
+let settleTimer = 0;
 let armed = false;
+let lenisBound: { off: (e: 'scroll', cb: () => void) => void } | null = null;
+let lenisRetry = 0;
+
+const SETTLE_MS = 220;
+
+function isCoarse() {
+  return typeof window !== 'undefined'
+    && window.matchMedia('(pointer: coarse)').matches;
+}
 
 function emit(next: boolean) {
-  if (active === next) return;
-  active = next;
-  listeners.forEach((fn) => fn(active));
+  if (paused === next) return;
+  paused = next;
+  listeners.forEach((fn) => fn(paused));
+}
+
+/** Mark scroll activity — stay paused through Lenis/touch inertia. */
+function bumpScrollActivity() {
+  if (!isCoarse()) return;
+  emit(true);
+  window.clearTimeout(settleTimer);
+  settleTimer = window.setTimeout(() => {
+    if (touches === 0) emit(false);
+  }, SETTLE_MS);
+}
+
+function bindLenis() {
+  const lenis = getLenisInstance();
+  if (!lenis || lenisBound) return;
+  lenis.on('scroll', bumpScrollActivity);
+  lenisBound = lenis;
 }
 
 function ensureArmed() {
@@ -18,31 +47,56 @@ function ensureArmed() {
   window.addEventListener(
     'touchstart',
     () => {
+      if (!isCoarse()) return;
       touches += 1;
       emit(true);
+      window.clearTimeout(settleTimer);
     },
     { passive: true, capture: true },
   );
 
-  const onEnd = () => {
+  const onTouchEnd = () => {
+    if (!isCoarse()) return;
     touches = Math.max(0, touches - 1);
-    if (touches === 0) emit(false);
+    // Finger up — keep paused until momentum scroll settles
+    bumpScrollActivity();
   };
 
-  window.addEventListener('touchend', onEnd, { passive: true, capture: true });
-  window.addEventListener('touchcancel', onEnd, { passive: true, capture: true });
+  window.addEventListener('touchend', onTouchEnd, { passive: true, capture: true });
+  window.addEventListener('touchcancel', onTouchEnd, { passive: true, capture: true });
+  window.addEventListener('scroll', bumpScrollActivity, { passive: true });
+
+  bindLenis();
+  lenisRetry = window.setInterval(() => {
+    bindLenis();
+    if (lenisBound) window.clearInterval(lenisRetry);
+  }, 50);
+  window.setTimeout(() => window.clearInterval(lenisRetry), 2000);
 }
 
-/** True while at least one finger is down (mobile touch-scroll). */
+/** True on mobile while finger is down or scroll momentum is still running. */
+export function isScrollPaused() {
+  return paused;
+}
+
+/** @deprecated use isScrollPaused */
 export function isTouchScrolling() {
-  return active;
+  return paused;
 }
 
-/** Subscribe to touch-scroll active state. Returns unsubscribe. */
-export function subscribeTouchScroll(listener: TouchScrollListener) {
+/**
+ * Subscribe to mobile scroll-pause state.
+ * Canvases should freeze RAF while paused so dual layers don't flicker.
+ */
+export function subscribeScrollPause(listener: ScrollPauseListener) {
   ensureArmed();
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
+}
+
+/** @deprecated use subscribeScrollPause */
+export function subscribeTouchScroll(listener: ScrollPauseListener) {
+  return subscribeScrollPause(listener);
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isSignificantSizeChange } from '@/lib/stable-size';
-import { subscribeTouchScroll } from '@/lib/touch-scroll';
+import { subscribeScrollPause } from '@/lib/touch-scroll';
 import { cn } from '@/lib/utils';
 
 type AboutGalaxyProps = {
@@ -298,10 +298,10 @@ export function AboutGalaxy({
       raf = requestAnimationFrame(tick);
     };
 
-    let touchPaused = false;
+    let scrollPaused = false;
 
     const start = () => {
-      if (running || prefersReduced || !inView || document.hidden || touchPaused) return;
+      if (running || prefersReduced || !inView || document.hidden || scrollPaused) return;
       running = true;
       lastTs = 0;
       raf = requestAnimationFrame(tick);
@@ -352,8 +352,8 @@ export function AboutGalaxy({
       else start();
     };
 
-    const unsubTouch = subscribeTouchScroll((active) => {
-      touchPaused = active;
+    const unsubPause = subscribeScrollPause((active) => {
+      scrollPaused = active;
       if (active) stop();
       else start();
     });
@@ -364,7 +364,7 @@ export function AboutGalaxy({
 
     return () => {
       stop();
-      unsubTouch();
+      unsubPause();
       ro.disconnect();
       io.disconnect();
       window.removeEventListener('pointermove', onPointerMove);

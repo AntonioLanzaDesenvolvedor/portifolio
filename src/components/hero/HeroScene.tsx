@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isSignificantSizeChange } from '@/lib/stable-size';
-import { subscribeTouchScroll } from '@/lib/touch-scroll';
+import { subscribeScrollPause } from '@/lib/touch-scroll';
 import { cn } from '@/lib/utils';
 
 type HeroSceneProps = {
@@ -26,8 +26,8 @@ type Star = {
 
 /**
  * Starfield from shadcn.io — same look on mobile and desktop.
- * During touch-scroll the RAF freezes on the last frame so dual-layer
- * compositing doesn't flicker under the finger.
+ * On phones, RAF freezes for the whole scroll (finger + Lenis inertia)
+ * so the dual-layer stack doesn't flicker; animation resumes when idle.
  * https://www.shadcn.io/background/starfield
  */
 export function HeroScene({
@@ -59,7 +59,7 @@ export function HeroScene({
     let animationId = 0;
     let tick = 0;
     let running = false;
-    let touchPaused = false;
+    let scrollPaused = false;
     const maxDepth = 1500;
 
     const createStar = (): Star => ({
@@ -87,7 +87,7 @@ export function HeroScene({
     ro.observe(container);
 
     const animate = () => {
-      if (!running || touchPaused) return;
+      if (!running || scrollPaused) return;
       tick++;
 
       ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
@@ -142,7 +142,7 @@ export function HeroScene({
     };
 
     const start = () => {
-      if (running || touchPaused || document.hidden) return;
+      if (running || scrollPaused || document.hidden) return;
       running = true;
       animationId = requestAnimationFrame(animate);
     };
@@ -156,8 +156,8 @@ export function HeroScene({
     ctx.fillRect(0, 0, width, height);
     start();
 
-    const unsubTouch = subscribeTouchScroll((active) => {
-      touchPaused = active;
+    const unsubPause = subscribeScrollPause((active) => {
+      scrollPaused = active;
       if (active) stop();
       else start();
     });
@@ -170,7 +170,7 @@ export function HeroScene({
 
     return () => {
       stop();
-      unsubTouch();
+      unsubPause();
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVis);
     };

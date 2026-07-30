@@ -1,6 +1,6 @@
 import { type RefObject, useEffect } from 'react';
 import { getLenisInstance } from '@/lib/lenis-instance';
-import { isTouchScrolling, subscribeTouchScroll } from '@/lib/touch-scroll';
+import { isScrollPaused, subscribeScrollPause } from '@/lib/touch-scroll';
 
 type FadeEntry = {
   id: symbol;
@@ -21,22 +21,22 @@ function refreshCoarse() {
 
 /**
  * Fixed full-viewport chapter backgrounds, faded by on-screen coverage.
- * On touch devices: snap opacity to 0/1 (partial opacity over live canvases
- * flickers during finger scroll). Soft crossfade stays on desktop.
+ * Mobile: snap 0/1 and skip opacity writes while scroll momentum is active
+ * (writing opacity over live canvases mid-scroll = flicker).
  */
 function syncAll() {
   if (entries.length === 0) return;
+  // Hold the last opacity until the finger/inertia fully settles
+  if (coarsePointer && isScrollPaused()) return;
 
   const vh = window.innerHeight || 1;
-  const touching = isTouchScrolling();
 
   for (const entry of entries) {
     const rect = entry.chapter.getBoundingClientRect();
     const visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0);
     let opacity = Math.max(0, Math.min(1, visible / vh));
 
-    if (coarsePointer || touching) {
-      // Hard cut — no translucent dual-canvas layers while scrolling with touch
+    if (coarsePointer) {
       opacity = opacity >= 0.5 ? 1 : 0;
     } else {
       if (opacity < 0.03) opacity = 0;
@@ -102,9 +102,8 @@ export function useChapterViewportFade(
     const ro = new ResizeObserver(syncAll);
     ro.observe(chapter);
 
-    const unsubTouch = subscribeTouchScroll(() => {
-      // Re-sync when finger lifts so the snap settles on the final section
-      syncAll();
+    const unsubPause = subscribeScrollPause((paused) => {
+      if (!paused) syncAll();
     });
 
     syncAll();
@@ -113,7 +112,7 @@ export function useChapterViewportFade(
       const idx = entries.indexOf(entry);
       if (idx >= 0) entries.splice(idx, 1);
       ro.disconnect();
-      unsubTouch();
+      unsubPause();
       maybeStopListening();
       syncAll();
     };

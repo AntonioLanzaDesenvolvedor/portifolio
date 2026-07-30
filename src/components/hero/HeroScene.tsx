@@ -57,6 +57,7 @@ export function HeroScene({
     let tick = 0;
     let running = document.visibilityState === 'visible';
     const maxDepth = 1500;
+    const mobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
 
     const createStar = (): Star => ({
       x: (Math.random() - 0.5) * width * 2,
@@ -112,7 +113,9 @@ export function HeroScene({
         let opacity = (1 - star.z / maxDepth) * 0.9 + 0.1;
 
         if (twinkle && star.twinkleSpeed > 0.015) {
-          opacity *= 0.7 + 0.3 * Math.sin(tick * star.twinkleSpeed + star.twinkleOffset);
+          opacity *= mobile
+            ? 0.88 + 0.12 * Math.sin(tick * star.twinkleSpeed * 0.5 + star.twinkleOffset)
+            : 0.7 + 0.3 * Math.sin(tick * star.twinkleSpeed + star.twinkleOffset);
         }
 
         ctx.beginPath();

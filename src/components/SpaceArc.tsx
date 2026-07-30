@@ -1,72 +1,41 @@
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { SkillsNebula } from '@/components/skills/SkillsNebula';
+import { useChapterViewportMask } from '@/hooks/use-chapter-viewport-mask';
 
 type SpaceArcProps = {
   children: ReactNode;
 };
 
 /**
- * Skills + Projects nebula — fixed + clipped to this chapter,
+ * Skills + Projects nebula — fixed + masked to this chapter,
  * same continuous language as SpaceChapter without overlapping it.
  */
 export function SpaceArc({ children }: SpaceArcProps) {
   const chapterRef = useRef<HTMLDivElement>(null);
-  const bgRef = useRef<HTMLDivElement>(null);
+  const maskRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const chapter = chapterRef.current;
-    const bg = bgRef.current;
-    if (!chapter || !bg) return;
-
-    let raf = 0;
-    let lastTop = -1;
-    let lastBottom = -1;
-
-    const sync = () => {
-      raf = 0;
-      const rect = chapter.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const top = Math.round(Math.max(0, rect.top));
-      const bottom = Math.round(Math.max(0, vh - rect.bottom));
-
-      if (top === lastTop && bottom === lastBottom) return;
-      lastTop = top;
-      lastBottom = bottom;
-
-      bg.style.clipPath = `inset(${top}px 0px ${bottom}px 0px)`;
-      // Match SpaceChapter: no visibility/opacity toggles (they flash on mobile)
-    };
-
-    const onScrollOrResize = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(sync);
-    };
-
-    sync();
-    window.addEventListener('scroll', onScrollOrResize, { passive: true });
-    window.addEventListener('resize', onScrollOrResize);
-    const ro = new ResizeObserver(onScrollOrResize);
-    ro.observe(chapter);
-
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', onScrollOrResize);
-      window.removeEventListener('resize', onScrollOrResize);
-      ro.disconnect();
-    };
-  }, []);
+  useChapterViewportMask(chapterRef, maskRef, stageRef);
 
   return (
     <>
-      <div ref={bgRef} className="pointer-events-none fixed inset-0 z-0" aria-hidden>
-        <SkillsNebula className="absolute inset-0 h-full w-full" />
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse at 30% 35%, rgba(56,100,180,0.12) 0%, transparent 48%), radial-gradient(ellipse at 75% 65%, rgba(100,60,150,0.1) 0%, transparent 50%)',
-          }}
-        />
+      <div
+        ref={maskRef}
+        className="pointer-events-none fixed left-0 right-0 z-0 overflow-hidden"
+        style={{ top: 0, height: '100%' }}
+        aria-hidden
+      >
+        <div ref={stageRef} className="relative h-screen w-full will-change-transform">
+          <div className="absolute inset-0 bg-[#0a0a0f]" />
+          <SkillsNebula className="absolute inset-0 h-full w-full" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(ellipse at 30% 35%, rgba(56,100,180,0.12) 0%, transparent 48%), radial-gradient(ellipse at 75% 65%, rgba(100,60,150,0.1) 0%, transparent 50%)',
+            }}
+          />
+        </div>
       </div>
 
       <div ref={chapterRef} className="relative z-40 overflow-visible">

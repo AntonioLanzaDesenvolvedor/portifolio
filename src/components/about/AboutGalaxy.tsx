@@ -84,8 +84,8 @@ export function AboutGalaxy({
 
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const mobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
-    const spiralN = mobile ? Math.min(starCount, 700) : starCount;
-    const fieldN = mobile ? Math.min(fieldCount, 140) : fieldCount;
+    const spiralN = mobile ? Math.min(starCount, 420) : starCount;
+    const fieldN = mobile ? Math.min(fieldCount, 48) : fieldCount;
 
     const rand = mulberry32((0x9e3779b1 ^ (131 * armCount) ^ spiralN) >>> 0);
     const spiralTurns = 4 * Math.PI;
@@ -165,7 +165,7 @@ export function AboutGalaxy({
       const rect = container.getBoundingClientRect();
       width = rect.width;
       height = rect.height;
-      const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75);
+      const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1 : 1.75);
       canvas.width = Math.max(1, Math.floor(width * dpr));
       canvas.height = Math.max(1, Math.floor(height * dpr));
       canvas.style.width = `${width}px`;
@@ -180,7 +180,7 @@ export function AboutGalaxy({
       const cx = width / 2 + parallaxX;
       const cy = height * 0.48 + parallaxY;
       const minSide = Math.min(width, height);
-      const breathe = 1 + 0.028 * Math.sin(tSec * 0.5);
+      const breathe = 1 + (mobile ? 0.012 : 0.028) * Math.sin(tSec * 0.5);
       const scale = 0.58 * minSide * breathe;
       const baseSpin = tSec * rotationSpeed;
 
@@ -196,7 +196,10 @@ export function AboutGalaxy({
       for (const s of field) {
         const px = cx + s.x * width * 0.55 * s.z;
         const py = cy + s.y * height * 0.55 * s.z;
-        const tw = 0.65 + 0.35 * Math.sin(tSec * s.twinkleSpeed + s.twinkleOffset);
+        // Soft twinkle on mobile — hard blinks read as screen flicker
+        const tw = mobile
+          ? 0.88 + 0.12 * Math.sin(tSec * s.twinkleSpeed * 0.55 + s.twinkleOffset)
+          : 0.65 + 0.35 * Math.sin(tSec * s.twinkleSpeed + s.twinkleOffset);
         const alpha = (0.25 + 0.45 * (1 - s.z)) * tw;
         const size = s.size * (0.7 + 0.4 * (1 - s.z));
         ctx.globalAlpha = alpha;
@@ -208,17 +211,21 @@ export function AboutGalaxy({
       ctx.globalAlpha = 1;
 
       // 2) Nebula dust — Hero blue / purple
-      ctx.globalCompositeOperation = 'lighter';
+      // Avoid 'lighter' on mobile GPUs (compositing flicker)
+      ctx.globalCompositeOperation = mobile ? 'source-over' : 'lighter';
       for (const cloud of dust) {
-        const pulse = 0.75 + 0.25 * Math.sin(tSec * cloud.pulseSpeed + cloud.pulsePhase);
+        const pulse = mobile
+          ? 0.9 + 0.1 * Math.sin(tSec * cloud.pulseSpeed + cloud.pulsePhase)
+          : 0.75 + 0.25 * Math.sin(tSec * cloud.pulseSpeed + cloud.pulsePhase);
         const theta = cloud.theta + baseSpin * (1.12 - cloud.radius * 0.35);
         const dist = cloud.radius * scale;
         const x = cx + Math.cos(theta) * dist;
         const y = cy + Math.sin(theta) * dist;
         const radius = cloud.size * scale * (0.92 + 0.12 * pulse);
         const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
-        grad.addColorStop(0, dustColor(cloud.hue, cloud.alpha * pulse));
-        grad.addColorStop(0.55, dustColor(cloud.hue, cloud.alpha * pulse * 0.32));
+        const aMul = mobile ? 0.85 : 1;
+        grad.addColorStop(0, dustColor(cloud.hue, cloud.alpha * pulse * aMul));
+        grad.addColorStop(0.55, dustColor(cloud.hue, cloud.alpha * pulse * 0.32 * aMul));
         grad.addColorStop(1, dustColor(cloud.hue, 0));
         ctx.fillStyle = grad;
         ctx.beginPath();
@@ -241,7 +248,7 @@ export function AboutGalaxy({
       ctx.fill();
 
       // 4) Spiral stars — white like Hero, slight cool tint
-      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalCompositeOperation = mobile ? 'source-over' : 'lighter';
       for (let i = 0; i < stars.length; i++) {
         const star = stars[i];
         const theta = star.theta + baseSpin * star.spinBias;
@@ -251,10 +258,12 @@ export function AboutGalaxy({
 
         if (x < -4 || x > width + 4 || y < -4 || y > height + 4) continue;
 
-        const twinkle = 0.5 + 0.5 * Math.sin(tSec * star.twinkleSpeed + star.twinklePhase);
+        const twinkle = mobile
+          ? 0.82 + 0.18 * Math.sin(tSec * star.twinkleSpeed * 0.45 + star.twinklePhase)
+          : 0.5 + 0.5 * Math.sin(tSec * star.twinkleSpeed + star.twinklePhase);
         const centerFade = 0.55 + 0.45 * Math.min(1, star.radius * 1.8);
         const alpha = star.brightness * twinkle * centerFade;
-        const size = star.size * (0.85 + 0.18 * twinkle);
+        const size = star.size * (mobile ? 0.9 : 0.85 + 0.18 * twinkle);
 
         // Outer arms cooler/blue-ish, overall still white-forward
         const cool = Math.min(1, star.radius);

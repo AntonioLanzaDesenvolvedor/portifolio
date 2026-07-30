@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { HeroScene } from '@/components/hero/HeroScene';
 import { AboutGalaxy } from '@/components/about/AboutGalaxy';
 
@@ -7,14 +7,31 @@ type SpaceChapterProps = {
   reduced?: boolean;
 };
 
+function isMobileViewport() {
+  return typeof window !== 'undefined'
+    && window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+}
+
 /**
  * Same fixed Hero starfield through About.
  * clip-path tracks the chapter box so the bg ends with Sobre and
  * never paints over Skills (sticky breaks under overflow-x-clip).
+ *
+ * Mobile: single canvas only — stacking HeroScene + AboutGalaxy causes
+ * compositing flicker on phone GPUs.
  */
 export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
   const chapterRef = useRef<HTMLDivElement>(null);
   const bgRef = useRef<HTMLDivElement>(null);
+  const [mobile, setMobile] = useState(() => isMobileViewport());
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px), (pointer: coarse)');
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   useEffect(() => {
     const chapter = chapterRef.current;
@@ -32,8 +49,8 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
       const visible = rect.bottom > 0 && rect.top < vh;
 
       bg.style.clipPath = `inset(${top}px 0px ${bottom}px 0px)`;
+      // Avoid opacity toggles — they flash on mobile compositors
       bg.style.visibility = visible ? 'visible' : 'hidden';
-      bg.style.opacity = visible ? '1' : '0';
     };
 
     const onScrollOrResize = () => {
@@ -63,20 +80,30 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
         aria-hidden
       >
         <div className="absolute inset-0 bg-[#0a0a0f]" />
-        <HeroScene reduced={reduced} className="absolute inset-0 h-full w-full" />
-        <div
-          className="absolute inset-0"
-          style={{ opacity: reduced ? 0.85 : 0.7 }}
-        >
+        {mobile || reduced ? (
           <AboutGalaxy
-            transparent
-            starCount={1000}
-            fieldCount={80}
+            transparent={false}
+            starCount={mobile ? 420 : 700}
+            fieldCount={mobile ? 48 : 80}
             armCount={4}
-            rotationSpeed={0.045}
+            rotationSpeed={mobile ? 0.028 : 0.045}
             className="absolute inset-0 h-full w-full"
           />
-        </div>
+        ) : (
+          <>
+            <HeroScene reduced={false} className="absolute inset-0 h-full w-full" />
+            <div className="absolute inset-0" style={{ opacity: 0.7 }}>
+              <AboutGalaxy
+                transparent
+                starCount={1000}
+                fieldCount={80}
+                armCount={4}
+                rotationSpeed={0.045}
+                className="absolute inset-0 h-full w-full"
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <div ref={chapterRef} className="relative z-[1]">

@@ -14,10 +14,9 @@ function isMobileViewport() {
 }
 
 /**
- * Fixed Hero starfield through About.
- * Desktop: HeroScene + AboutGalaxy stack.
- * Mobile: HeroScene only — stacking two live canvases under opacity
- * fades flickers hard on phone GPUs; nebula stays as CSS overlays.
+ * Same fixed Hero starfield through About on every viewport:
+ * HeroScene (hyperspace) + AboutGalaxy nebula stack — desktop look on mobile too.
+ * Mobile uses lighter particle counts; canvases already soften clear/twinkle.
  */
 export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
   const chapterRef = useRef<HTMLDivElement>(null);
@@ -51,27 +50,21 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
             rotationSpeed={0.045}
             className="absolute inset-0 h-full w-full"
           />
-        ) : mobile ? (
-          <HeroScene
-            reduced={false}
-            count={200}
-            speed={0.38}
-            className="absolute inset-0 h-full w-full"
-          />
         ) : (
           <>
             <HeroScene
               reduced={false}
-              count={400}
+              count={mobile ? 300 : 400}
+              speed={mobile ? 0.45 : 0.5}
               className="absolute inset-0 h-full w-full"
             />
             <div className="absolute inset-0" style={{ opacity: 0.7 }}>
               <AboutGalaxy
                 transparent
-                starCount={1000}
-                fieldCount={80}
+                starCount={mobile ? 720 : 1000}
+                fieldCount={mobile ? 56 : 80}
                 armCount={4}
-                rotationSpeed={0.045}
+                rotationSpeed={mobile ? 0.04 : 0.045}
                 className="absolute inset-0 h-full w-full"
               />
             </div>

@@ -25,8 +25,8 @@ type Star = {
 
 /**
  * Starfield from shadcn.io — animated on all viewports.
- * Mobile keeps the depth motion but uses a solid clear + soft twinkle
- * (no trail fade / long streaks) so scroll doesn't flicker.
+ * Mobile uses a softer trail (not a hard clear) so it still reads like
+ * desktop hyperspace without the harsh compositor flicker of full dual-layer trails.
  * https://www.shadcn.io/background/starfield
  */
 export function HeroScene({
@@ -60,7 +60,6 @@ export function HeroScene({
     let running = document.visibilityState === 'visible';
     const maxDepth = 1500;
     const mobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
-    const travel = mobile ? Math.min(speed, 0.38) : speed;
 
     const createStar = (): Star => ({
       x: (Math.random() - 0.5) * width * 2,
@@ -90,20 +89,15 @@ export function HeroScene({
       if (!running) return;
       tick++;
 
-      // Trail fade flickers on mobile compositors — solid clear there
-      if (mobile) {
-        ctx.fillStyle = '#0a0a0f';
-        ctx.fillRect(0, 0, width, height);
-      } else {
-        ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
-        ctx.fillRect(0, 0, width, height);
-      }
+      // Softer trail on mobile — solid clear killed the desktop hyperspace look
+      ctx.fillStyle = mobile ? 'rgba(10, 10, 15, 0.32)' : 'rgba(10, 10, 15, 0.2)';
+      ctx.fillRect(0, 0, width, height);
 
       const cx = width / 2;
       const cy = height / 2;
 
       for (const star of stars) {
-        star.z -= travel * 2;
+        star.z -= speed * 2;
 
         if (star.z <= 0) {
           star.x = (Math.random() - 0.5) * width * 2;
@@ -122,7 +116,7 @@ export function HeroScene({
 
         if (twinkle && star.twinkleSpeed > 0.015) {
           opacity *= mobile
-            ? 0.9 + 0.1 * Math.sin(tick * star.twinkleSpeed * 0.45 + star.twinkleOffset)
+            ? 0.82 + 0.18 * Math.sin(tick * star.twinkleSpeed * 0.7 + star.twinkleOffset)
             : 0.7 + 0.3 * Math.sin(tick * star.twinkleSpeed + star.twinkleOffset);
         }
 
@@ -132,16 +126,15 @@ export function HeroScene({
         ctx.globalAlpha = opacity;
         ctx.fill();
 
-        // Short soft streaks on mobile; full hyperspace streaks on desktop
-        if (star.z < maxDepth * 0.3 && travel > 0.25) {
-          const streakLength = (1 - star.z / maxDepth) * travel * (mobile ? 4 : 8);
+        if (star.z < maxDepth * 0.3 && speed > 0.3) {
+          const streakLength = (1 - star.z / maxDepth) * speed * (mobile ? 6.5 : 8);
           const angle = Math.atan2(star.y, star.x);
           ctx.beginPath();
           ctx.moveTo(x, y);
           ctx.lineTo(x - Math.cos(angle) * streakLength, y - Math.sin(angle) * streakLength);
           ctx.strokeStyle = starColor;
-          ctx.globalAlpha = opacity * (mobile ? 0.18 : 0.3);
-          ctx.lineWidth = size * (mobile ? 0.35 : 0.5);
+          ctx.globalAlpha = opacity * (mobile ? 0.26 : 0.3);
+          ctx.lineWidth = size * (mobile ? 0.45 : 0.5);
           ctx.stroke();
         }
       }
@@ -195,10 +188,10 @@ export function HeroScene({
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       <div
-        className="pointer-events-none absolute inset-0 opacity-40 md:opacity-30"
+        className="pointer-events-none absolute inset-0 opacity-30"
         style={{
           background:
-            'radial-gradient(ellipse at 30% 40%, rgba(56, 100, 180, 0.22) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(100, 60, 150, 0.16) 0%, transparent 50%)',
+            'radial-gradient(ellipse at 30% 40%, rgba(56, 100, 180, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(100, 60, 150, 0.1) 0%, transparent 50%)',
         }}
       />
     </div>

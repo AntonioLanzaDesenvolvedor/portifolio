@@ -10,8 +10,7 @@ type SpaceChapterProps = {
 
 /**
  * Same fixed Hero starfield through About on every viewport —
- * identical HeroScene + AboutGalaxy stack (desktop look on mobile too).
- * Touch-scroll freezes canvas RAF so the dual layer doesn't flicker.
+ * identical HeroScene + AboutGalaxy stack on mobile and desktop.
  */
 export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
   const chapterRef = useRef<HTMLDivElement>(null);

@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { isSignificantSizeChange } from '@/lib/stable-size';
-import { subscribeScrollPause } from '@/lib/touch-scroll';
 import { cn } from '@/lib/utils';
 
 type HeroSceneProps = {
@@ -26,8 +25,7 @@ type Star = {
 
 /**
  * Starfield from shadcn.io — same look on mobile and desktop.
- * On phones, RAF freezes for the whole scroll (finger + Lenis inertia)
- * so the dual-layer stack doesn't flicker; animation resumes when idle.
+ * Never pause RAF on scroll (that left a blank canvas after mobile URL-bar resize).
  * https://www.shadcn.io/background/starfield
  */
 export function HeroScene({
@@ -59,8 +57,9 @@ export function HeroScene({
     let animationId = 0;
     let tick = 0;
     let running = false;
-    let scrollPaused = false;
     const maxDepth = 1500;
+    // Ignore URL-bar height jumps on mobile — resizing clears the bitmap
+    const sizeThreshold = window.matchMedia('(pointer: coarse)').matches ? 140 : 64;
 
     const createStar = (): Star => ({
       x: (Math.random() - 0.5) * width * 2,
@@ -72,24 +71,7 @@ export function HeroScene({
 
     const stars: Star[] = Array.from({ length: count }, createStar);
 
-    const handleResize = () => {
-      const next = container.getBoundingClientRect();
-      if (!isSignificantSizeChange(width, height, next.width, next.height)) return;
-      width = next.width;
-      height = next.height;
-      canvas.width = width;
-      canvas.height = height;
-      ctx.fillStyle = '#0a0a0f';
-      ctx.fillRect(0, 0, width, height);
-    };
-
-    const ro = new ResizeObserver(handleResize);
-    ro.observe(container);
-
-    const animate = () => {
-      if (!running || scrollPaused) return;
-      tick++;
-
+    const paint = () => {
       ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
       ctx.fillRect(0, 0, width, height);
 
@@ -138,11 +120,36 @@ export function HeroScene({
       }
 
       ctx.globalAlpha = 1;
+    };
+
+    const handleResize = () => {
+      const next = container.getBoundingClientRect();
+      // Width-only matters for layout; height jitter from the URL bar must not wipe the canvas
+      if (!isSignificantSizeChange(width, height, next.width, next.height, sizeThreshold)) return;
+      if (Math.abs(next.width - width) < 1 && Math.abs(next.height - height) < sizeThreshold) return;
+      width = next.width;
+      height = next.height;
+      canvas.width = width;
+      canvas.height = height;
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, width, height);
+      // Immediate redraw so a resize never leaves a blank field
+      tick++;
+      paint();
+    };
+
+    const ro = new ResizeObserver(handleResize);
+    ro.observe(container);
+
+    const animate = () => {
+      if (!running) return;
+      tick++;
+      paint();
       animationId = requestAnimationFrame(animate);
     };
 
     const start = () => {
-      if (running || scrollPaused || document.hidden) return;
+      if (running || document.hidden) return;
       running = true;
       animationId = requestAnimationFrame(animate);
     };
@@ -156,12 +163,6 @@ export function HeroScene({
     ctx.fillRect(0, 0, width, height);
     start();
 
-    const unsubPause = subscribeScrollPause((active) => {
-      scrollPaused = active;
-      if (active) stop();
-      else start();
-    });
-
     const onVis = () => {
       if (document.hidden) stop();
       else start();
@@ -170,7 +171,6 @@ export function HeroScene({
 
     return () => {
       stop();
-      unsubPause();
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVis);
     };

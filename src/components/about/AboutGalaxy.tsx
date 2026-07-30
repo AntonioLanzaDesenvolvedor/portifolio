@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { isSignificantSizeChange } from '@/lib/stable-size';
-import { subscribeScrollPause } from '@/lib/touch-scroll';
 import { cn } from '@/lib/utils';
 
 type AboutGalaxyProps = {
@@ -163,11 +162,13 @@ export function AboutGalaxy({
     let parallaxX = 0;
     let parallaxY = 0;
 
+    const sizeThreshold = mobile ? 140 : 64;
+
     const resize = () => {
       const rect = container.getBoundingClientRect();
       const nextW = rect.width;
       const nextH = rect.height;
-      if (!isSignificantSizeChange(width, height, nextW, nextH)) return false;
+      if (!isSignificantSizeChange(width, height, nextW, nextH, sizeThreshold)) return false;
       width = nextW;
       height = nextH;
       const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1 : 1.75);
@@ -298,10 +299,8 @@ export function AboutGalaxy({
       raf = requestAnimationFrame(tick);
     };
 
-    let scrollPaused = false;
-
     const start = () => {
-      if (running || prefersReduced || !inView || document.hidden || scrollPaused) return;
+      if (running || prefersReduced || !inView || document.hidden) return;
       running = true;
       lastTs = 0;
       raf = requestAnimationFrame(tick);
@@ -333,7 +332,8 @@ export function AboutGalaxy({
 
     const ro = new ResizeObserver(() => {
       if (!resize()) return;
-      if (prefersReduced) draw();
+      // Always redraw after buffer reset — never leave a blank canvas
+      draw();
     });
     ro.observe(container);
 
@@ -352,19 +352,12 @@ export function AboutGalaxy({
       else start();
     };
 
-    const unsubPause = subscribeScrollPause((active) => {
-      scrollPaused = active;
-      if (active) stop();
-      else start();
-    });
-
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     container.addEventListener('pointerleave', onPointerLeave);
     document.addEventListener('visibilitychange', onVis);
 
     return () => {
       stop();
-      unsubPause();
       ro.disconnect();
       io.disconnect();
       window.removeEventListener('pointermove', onPointerMove);

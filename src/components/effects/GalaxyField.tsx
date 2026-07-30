@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isSignificantSizeChange } from '@/lib/stable-size';
 import { cn } from '@/lib/utils';
 
 type GalaxyFieldProps = {
@@ -122,16 +123,23 @@ export function GalaxyField({ className }: GalaxyFieldProps) {
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
-      w = Math.max(1, Math.floor(rect.width));
-      h = Math.max(1, Math.floor(rect.height));
+      const nextW = Math.max(1, Math.floor(rect.width));
+      const nextH = Math.max(1, Math.floor(rect.height));
+      if (w > 0 && !isSignificantSizeChange(w, h, nextW, nextH)) return false;
+      const needsReseed = w === 0 || Math.abs(nextW - w) >= 1 || Math.abs(nextH - h) >= 64;
+      w = nextW;
+      h = nextH;
       dpr = mobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.floor(w * dpr);
       canvas.height = Math.floor(h * dpr);
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      seedStars();
-      seedClouds();
+      if (needsReseed) {
+        seedStars();
+        seedClouds();
+      }
+      return true;
     };
 
     const cloudColor = (tone: 0 | 1 | 2, alpha: number) => {
@@ -203,7 +211,9 @@ export function GalaxyField({ className }: GalaxyFieldProps) {
       }
 
       for (const s of stars) {
-        const twinkle = 0.55 + Math.sin(t * s.tw + s.ph) * 0.45;
+        const twinkle = mobile
+          ? 0.88 + Math.sin(t * s.tw * 0.5 + s.ph) * 0.12
+          : 0.55 + Math.sin(t * s.tw + s.ph) * 0.45;
         ctx.fillStyle = `rgba(224, 247, 255, ${s.a * twinkle})`;
         ctx.beginPath();
         ctx.arc(s.x * w, s.y * h, s.s, 0, Math.PI * 2);
@@ -278,7 +288,7 @@ export function GalaxyField({ className }: GalaxyFieldProps) {
     };
 
     const ro = new ResizeObserver(() => {
-      resize();
+      if (!resize()) return;
       if (reduced) drawStatic();
       else if (!running && inView) start();
     });

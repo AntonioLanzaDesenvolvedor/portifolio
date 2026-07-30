@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isSignificantSizeChange } from '@/lib/stable-size';
 import { cn } from '@/lib/utils';
 
 type AboutGalaxyProps = {
@@ -163,14 +164,18 @@ export function AboutGalaxy({
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
+      const nextW = rect.width;
+      const nextH = rect.height;
+      if (!isSignificantSizeChange(width, height, nextW, nextH)) return false;
+      width = nextW;
+      height = nextH;
       const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1 : 1.75);
       canvas.width = Math.max(1, Math.floor(width * dpr));
       canvas.height = Math.max(1, Math.floor(height * dpr));
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return true;
     };
 
     const draw = () => {
@@ -324,10 +329,8 @@ export function AboutGalaxy({
     else start();
 
     const ro = new ResizeObserver(() => {
-      stop();
-      resize();
+      if (!resize()) return;
       if (prefersReduced) draw();
-      else start();
     });
     ro.observe(container);
 

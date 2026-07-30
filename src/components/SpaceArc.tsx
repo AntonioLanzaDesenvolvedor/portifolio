@@ -19,18 +19,22 @@ export function SpaceArc({ children }: SpaceArcProps) {
     if (!chapter || !bg) return;
 
     let raf = 0;
+    let lastTop = -1;
+    let lastBottom = -1;
 
     const sync = () => {
       raf = 0;
       const rect = chapter.getBoundingClientRect();
       const vh = window.innerHeight;
-      const top = Math.max(0, rect.top);
-      const bottom = Math.max(0, vh - rect.bottom);
-      const visible = rect.bottom > 0 && rect.top < vh;
+      const top = Math.round(Math.max(0, rect.top));
+      const bottom = Math.round(Math.max(0, vh - rect.bottom));
+
+      if (top === lastTop && bottom === lastBottom) return;
+      lastTop = top;
+      lastBottom = bottom;
 
       bg.style.clipPath = `inset(${top}px 0px ${bottom}px 0px)`;
-      bg.style.visibility = visible ? 'visible' : 'hidden';
-      bg.style.opacity = visible ? '1' : '0';
+      // Match SpaceChapter: no visibility/opacity toggles (they flash on mobile)
     };
 
     const onScrollOrResize = () => {

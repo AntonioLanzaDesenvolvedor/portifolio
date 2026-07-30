@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isSignificantSizeChange } from '@/lib/stable-size';
 import { cn } from '@/lib/utils';
 
 type SkillsNebulaProps = {
@@ -83,8 +84,11 @@ export function SkillsNebula({ className }: SkillsNebulaProps) {
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
-      w = rect.width;
-      h = rect.height;
+      const nextW = rect.width;
+      const nextH = rect.height;
+      if (!isSignificantSizeChange(w, h, nextW, nextH)) return false;
+      w = nextW;
+      h = nextH;
       const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.5);
       canvas.width = Math.max(1, Math.floor(w * dpr));
       canvas.height = Math.max(1, Math.floor(h * dpr));
@@ -93,6 +97,7 @@ export function SkillsNebula({ className }: SkillsNebulaProps) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (clouds.length === 0) seedClouds();
       if (stars.length === 0) seedStars();
+      return true;
     };
 
     const color = (hue: 0 | 1, a: number) =>
@@ -104,9 +109,12 @@ export function SkillsNebula({ className }: SkillsNebulaProps) {
       ctx.fillStyle = '#0a0a0f';
       ctx.fillRect(0, 0, w, h);
 
-      ctx.globalCompositeOperation = 'lighter';
+      // Match AboutGalaxy: avoid 'lighter' on mobile under clipped layers
+      ctx.globalCompositeOperation = mobile ? 'source-over' : 'lighter';
       for (const c of clouds) {
-        const pulse = 0.75 + 0.25 * Math.sin(t * c.pulse + c.phase);
+        const pulse = mobile
+          ? 0.9 + 0.1 * Math.sin(t * c.pulse + c.phase)
+          : 0.75 + 0.25 * Math.sin(t * c.pulse + c.phase);
         const r = c.r * (0.92 + 0.08 * pulse);
         const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, r);
         g.addColorStop(0, color(c.hue, c.a * pulse));
@@ -120,7 +128,9 @@ export function SkillsNebula({ className }: SkillsNebulaProps) {
 
       ctx.globalCompositeOperation = 'source-over';
       for (const s of stars) {
-        const tw = 0.55 + 0.45 * Math.sin(t * s.tw + s.ph);
+        const tw = mobile
+          ? 0.88 + 0.12 * Math.sin(t * s.tw * 0.55 + s.ph)
+          : 0.55 + 0.45 * Math.sin(t * s.tw + s.ph);
         ctx.globalAlpha = s.a * tw;
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
@@ -175,10 +185,8 @@ export function SkillsNebula({ className }: SkillsNebulaProps) {
     else start();
 
     const ro = new ResizeObserver(() => {
-      stop();
-      resize();
+      if (!resize()) return;
       if (reduced) draw();
-      else start();
     });
     ro.observe(container);
 

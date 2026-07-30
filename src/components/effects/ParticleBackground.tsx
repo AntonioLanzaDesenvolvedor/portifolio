@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useEntrance } from '@/hooks/use-entrance';
+import { isSignificantSizeChange } from '@/lib/stable-size';
 
 type Particle = {
   x: number;
@@ -67,22 +68,31 @@ export function ParticleBackground() {
     let intensity = 0;
     let targetIntensity = 0;
     let mobile = isMobileViewport();
+    let layoutW = 0;
+    let layoutH = 0;
 
     const resize = () => {
       mobile = isMobileViewport();
+      const nextW = window.innerWidth;
+      const nextH = window.innerHeight;
+      // Mobile URL bar toggles resize every scroll — don't wipe particles
+      if (!isSignificantSizeChange(layoutW, layoutH, nextW, nextH)) return;
+      layoutW = nextW;
+      layoutH = nextH;
+
       const dpr = mobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
-      canvas.height = Math.max(1, Math.floor(window.innerHeight * dpr));
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
+      canvas.width = Math.max(1, Math.floor(layoutW * dpr));
+      canvas.height = Math.max(1, Math.floor(layoutH * dpr));
+      canvas.style.width = `${layoutW}px`;
+      canvas.style.height = `${layoutH}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const density = mobile ? PARTICLE_DENSITY_MOBILE : PARTICLE_DENSITY_DESKTOP;
-      const count = Math.floor((window.innerWidth * window.innerHeight) / density);
+      const count = Math.floor((layoutW * layoutH) / density);
       const minCount = mobile ? 22 : 45;
       const maxCount = mobile ? 36 : 100;
       particles = Array.from({ length: Math.min(Math.max(count, minCount), maxCount) }, () =>
-        createParticle(window.innerWidth, window.innerHeight),
+        createParticle(layoutW, layoutH),
       );
 
       if (mobile) {
@@ -101,8 +111,8 @@ export function ParticleBackground() {
     };
 
     const draw = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
+      const w = layoutW || window.innerWidth;
+      const h = layoutH || window.innerHeight;
 
       if (!prefersReducedMotion && !mobile) {
         intensity += (targetIntensity - intensity) * 0.08;

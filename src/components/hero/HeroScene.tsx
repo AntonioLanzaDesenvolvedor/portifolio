@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isSignificantSizeChange } from '@/lib/stable-size';
 import { cn } from '@/lib/utils';
 
 type HeroSceneProps = {
@@ -69,10 +70,13 @@ export function HeroScene({
 
     const handleResize = () => {
       const next = container.getBoundingClientRect();
+      if (!isSignificantSizeChange(width, height, next.width, next.height)) return;
       width = next.width;
       height = next.height;
       canvas.width = width;
       canvas.height = height;
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, width, height);
     };
 
     const ro = new ResizeObserver(handleResize);

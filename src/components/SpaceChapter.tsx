@@ -39,18 +39,23 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
     if (!chapter || !bg) return;
 
     let raf = 0;
+    let lastTop = -1;
+    let lastBottom = -1;
 
     const sync = () => {
       raf = 0;
       const rect = chapter.getBoundingClientRect();
       const vh = window.innerHeight;
-      const top = Math.max(0, rect.top);
-      const bottom = Math.max(0, vh - rect.bottom);
-      const visible = rect.bottom > 0 && rect.top < vh;
+      // Round to whole px — subpixel clip-path thrash causes mobile flicker
+      const top = Math.round(Math.max(0, rect.top));
+      const bottom = Math.round(Math.max(0, vh - rect.bottom));
+
+      if (top === lastTop && bottom === lastBottom) return;
+      lastTop = top;
+      lastBottom = bottom;
 
       bg.style.clipPath = `inset(${top}px 0px ${bottom}px 0px)`;
-      // Avoid opacity toggles — they flash on mobile compositors
-      bg.style.visibility = visible ? 'visible' : 'hidden';
+      // Never toggle visibility/opacity — that flashes at section edges
     };
 
     const onScrollOrResize = () => {

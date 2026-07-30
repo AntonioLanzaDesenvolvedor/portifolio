@@ -7,14 +7,12 @@ type HeroSceneProps = {
   reduced?: boolean;
   /** Number of stars */
   count?: number;
-  /** Travel speed — must be > 0.3 for hyperspace streaks. Ignored when static. */
+  /** Travel speed — must be > 0.3 for hyperspace streaks on desktop */
   speed?: number;
   /** Star color */
   starColor?: string;
   /** Enable twinkling */
   twinkle?: boolean;
-  /** No depth/parallax motion — use on mobile to avoid scroll flicker */
-  staticField?: boolean;
 };
 
 type Star = {
@@ -25,19 +23,11 @@ type Star = {
   twinkleOffset: number;
 };
 
-type FlatStar = {
-  x: number;
-  y: number;
-  size: number;
-  opacity: number;
-  twinkleSpeed: number;
-  twinkleOffset: number;
-};
-
 /**
- * Exact Starfield from shadcn.io — always live from mount.
+ * Starfield from shadcn.io — animated on all viewports.
+ * Mobile keeps the depth motion but uses a solid clear + soft twinkle
+ * (no trail fade / long streaks) so scroll doesn't flicker.
  * https://www.shadcn.io/background/starfield
- * Mobile: pass staticField to disable hyperspace parallax.
  */
 export function HeroScene({
   className,
@@ -46,7 +36,6 @@ export function HeroScene({
   speed = 0.5,
   starColor = '#ffffff',
   twinkle = true,
-  staticField = false,
 }: HeroSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,84 +60,8 @@ export function HeroScene({
     let running = document.visibilityState === 'visible';
     const maxDepth = 1500;
     const mobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
-    const flat = staticField || mobile;
-    let redrawFlat: ((force?: boolean) => void) | null = null;
+    const travel = mobile ? Math.min(speed, 0.38) : speed;
 
-    const handleResize = () => {
-      const next = container.getBoundingClientRect();
-      if (!isSignificantSizeChange(width, height, next.width, next.height)) return;
-      width = next.width;
-      height = next.height;
-      canvas.width = width;
-      canvas.height = height;
-      ctx.fillStyle = '#0a0a0f';
-      ctx.fillRect(0, 0, width, height);
-      redrawFlat?.(true);
-    };
-
-    const ro = new ResizeObserver(handleResize);
-    ro.observe(container);
-
-    // --- Static field (no depth parallax) ---
-    if (flat) {
-      const flatStars: FlatStar[] = Array.from({ length: count }, () => ({
-        x: Math.random(),
-        y: Math.random(),
-        size: 0.5 + Math.random() * 1.6,
-        opacity: 0.25 + Math.random() * 0.65,
-        twinkleSpeed: 0.4 + Math.random() * 0.9,
-        twinkleOffset: Math.random() * Math.PI * 2,
-      }));
-
-      const drawFlat = (force = false) => {
-        if (!running && !force) return;
-        tick++;
-        ctx.fillStyle = '#0a0a0f';
-        ctx.fillRect(0, 0, width, height);
-
-        for (const star of flatStars) {
-          const tw = twinkle
-            ? 0.9 + 0.1 * Math.sin(tick * 0.012 * star.twinkleSpeed + star.twinkleOffset)
-            : 1;
-          ctx.globalAlpha = star.opacity * tw;
-          ctx.fillStyle = starColor;
-          ctx.beginPath();
-          ctx.arc(star.x * width, star.y * height, star.size, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-
-        if (twinkle && running) {
-          animationId = requestAnimationFrame(() => drawFlat());
-        }
-      };
-      redrawFlat = drawFlat;
-
-      drawFlat(true);
-      if (twinkle) animationId = requestAnimationFrame(() => drawFlat());
-
-      const onVis = () => {
-        const show = document.visibilityState === 'visible';
-        if (show && !running) {
-          running = true;
-          if (twinkle) animationId = requestAnimationFrame(() => drawFlat());
-          else drawFlat(true);
-        } else if (!show) {
-          running = false;
-          cancelAnimationFrame(animationId);
-        }
-      };
-      document.addEventListener('visibilitychange', onVis);
-
-      return () => {
-        running = false;
-        cancelAnimationFrame(animationId);
-        ro.disconnect();
-        document.removeEventListener('visibilitychange', onVis);
-      };
-    }
-
-    // --- Desktop hyperspace field ---
     const createStar = (): Star => ({
       x: (Math.random() - 0.5) * width * 2,
       y: (Math.random() - 0.5) * height * 2,
@@ -159,18 +72,38 @@ export function HeroScene({
 
     const stars: Star[] = Array.from({ length: count }, createStar);
 
+    const handleResize = () => {
+      const next = container.getBoundingClientRect();
+      if (!isSignificantSizeChange(width, height, next.width, next.height)) return;
+      width = next.width;
+      height = next.height;
+      canvas.width = width;
+      canvas.height = height;
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, width, height);
+    };
+
+    const ro = new ResizeObserver(handleResize);
+    ro.observe(container);
+
     const animate = () => {
       if (!running) return;
       tick++;
 
-      ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
-      ctx.fillRect(0, 0, width, height);
+      // Trail fade flickers on mobile compositors — solid clear there
+      if (mobile) {
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, width, height);
+      } else {
+        ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
+        ctx.fillRect(0, 0, width, height);
+      }
 
       const cx = width / 2;
       const cy = height / 2;
 
       for (const star of stars) {
-        star.z -= speed * 2;
+        star.z -= travel * 2;
 
         if (star.z <= 0) {
           star.x = (Math.random() - 0.5) * width * 2;
@@ -188,7 +121,9 @@ export function HeroScene({
         let opacity = (1 - star.z / maxDepth) * 0.9 + 0.1;
 
         if (twinkle && star.twinkleSpeed > 0.015) {
-          opacity *= 0.7 + 0.3 * Math.sin(tick * star.twinkleSpeed + star.twinkleOffset);
+          opacity *= mobile
+            ? 0.9 + 0.1 * Math.sin(tick * star.twinkleSpeed * 0.45 + star.twinkleOffset)
+            : 0.7 + 0.3 * Math.sin(tick * star.twinkleSpeed + star.twinkleOffset);
         }
 
         ctx.beginPath();
@@ -197,15 +132,16 @@ export function HeroScene({
         ctx.globalAlpha = opacity;
         ctx.fill();
 
-        if (star.z < maxDepth * 0.3 && speed > 0.3) {
-          const streakLength = (1 - star.z / maxDepth) * speed * 8;
+        // Short soft streaks on mobile; full hyperspace streaks on desktop
+        if (star.z < maxDepth * 0.3 && travel > 0.25) {
+          const streakLength = (1 - star.z / maxDepth) * travel * (mobile ? 4 : 8);
           const angle = Math.atan2(star.y, star.x);
           ctx.beginPath();
           ctx.moveTo(x, y);
           ctx.lineTo(x - Math.cos(angle) * streakLength, y - Math.sin(angle) * streakLength);
           ctx.strokeStyle = starColor;
-          ctx.globalAlpha = opacity * 0.3;
-          ctx.lineWidth = size * 0.5;
+          ctx.globalAlpha = opacity * (mobile ? 0.18 : 0.3);
+          ctx.lineWidth = size * (mobile ? 0.35 : 0.5);
           ctx.stroke();
         }
       }
@@ -236,7 +172,7 @@ export function HeroScene({
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [reduced, count, speed, starColor, twinkle, staticField]);
+  }, [reduced, count, speed, starColor, twinkle]);
 
   if (reduced) {
     return (

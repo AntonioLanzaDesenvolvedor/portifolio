@@ -54,8 +54,8 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
         ) : mobile ? (
           <HeroScene
             reduced={false}
-            count={180}
-            staticField
+            count={200}
+            speed={0.38}
             className="absolute inset-0 h-full w-full"
           />
         ) : (

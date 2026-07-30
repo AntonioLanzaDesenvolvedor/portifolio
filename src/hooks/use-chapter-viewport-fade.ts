@@ -1,5 +1,6 @@
 import { type RefObject, useEffect } from 'react';
 import { getLenisInstance } from '@/lib/lenis-instance';
+import { isTouchScrolling, subscribeTouchScroll } from '@/lib/touch-scroll';
 
 type FadeEntry = {
   id: symbol;
@@ -12,28 +13,39 @@ const entries: FadeEntry[] = [];
 let listening = false;
 let lenisBound: { off: (e: 'scroll', cb: () => void) => void } | null = null;
 let lenisRetry = 0;
+let coarsePointer = false;
+
+function refreshCoarse() {
+  coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+}
 
 /**
  * Fixed full-viewport chapter backgrounds, faded by on-screen coverage.
- * No top/height/clip geometry — those slip against mobile scroll and make
- * section seams flicker. Soft crossfade at boundaries instead.
+ * On touch devices: snap opacity to 0/1 (partial opacity over live canvases
+ * flickers during finger scroll). Soft crossfade stays on desktop.
  */
 function syncAll() {
   if (entries.length === 0) return;
 
   const vh = window.innerHeight || 1;
+  const touching = isTouchScrolling();
 
   for (const entry of entries) {
     const rect = entry.chapter.getBoundingClientRect();
     const visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0);
     let opacity = Math.max(0, Math.min(1, visible / vh));
-    if (opacity < 0.03) opacity = 0;
-    else if (opacity > 0.97) opacity = 1;
+
+    if (coarsePointer || touching) {
+      // Hard cut — no translucent dual-canvas layers while scrolling with touch
+      opacity = opacity >= 0.5 ? 1 : 0;
+    } else {
+      if (opacity < 0.03) opacity = 0;
+      else if (opacity > 0.97) opacity = 1;
+    }
 
     if (opacity === entry.lastOpacity) continue;
     entry.lastOpacity = opacity;
     entry.layer.style.opacity = String(opacity);
-    // Fully off: drop from compositor so sibling canvases don't fight
     entry.layer.style.visibility = opacity === 0 ? 'hidden' : 'visible';
   }
 }
@@ -48,6 +60,7 @@ function bindLenis() {
 function ensureListening() {
   if (listening) return;
   listening = true;
+  refreshCoarse();
   window.addEventListener('scroll', syncAll, { passive: true });
   window.addEventListener('resize', syncAll);
   bindLenis();
@@ -88,12 +101,19 @@ export function useChapterViewportFade(
 
     const ro = new ResizeObserver(syncAll);
     ro.observe(chapter);
+
+    const unsubTouch = subscribeTouchScroll(() => {
+      // Re-sync when finger lifts so the snap settles on the final section
+      syncAll();
+    });
+
     syncAll();
 
     return () => {
       const idx = entries.indexOf(entry);
       if (idx >= 0) entries.splice(idx, 1);
       ro.disconnect();
+      unsubTouch();
       maybeStopListening();
       syncAll();
     };

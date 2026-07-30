@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { HeroScene } from '@/components/hero/HeroScene';
 import { AboutGalaxy } from '@/components/about/AboutGalaxy';
 import { useChapterViewportFade } from '@/hooks/use-chapter-viewport-fade';
@@ -8,28 +8,14 @@ type SpaceChapterProps = {
   reduced?: boolean;
 };
 
-function isMobileViewport() {
-  return typeof window !== 'undefined'
-    && window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
-}
-
 /**
- * Same fixed Hero starfield through About on every viewport:
- * HeroScene (hyperspace) + AboutGalaxy nebula stack — desktop look on mobile too.
- * Mobile uses lighter particle counts; canvases already soften clear/twinkle.
+ * Same fixed Hero starfield through About on every viewport —
+ * identical HeroScene + AboutGalaxy stack (desktop look on mobile too).
+ * Touch-scroll freezes canvas RAF so the dual layer doesn't flicker.
  */
 export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
   const chapterRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
-  const [mobile, setMobile] = useState(() => isMobileViewport());
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px), (pointer: coarse)');
-    const sync = () => setMobile(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
 
   useChapterViewportFade(chapterRef, layerRef);
 
@@ -52,19 +38,14 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
           />
         ) : (
           <>
-            <HeroScene
-              reduced={false}
-              count={mobile ? 300 : 400}
-              speed={mobile ? 0.45 : 0.5}
-              className="absolute inset-0 h-full w-full"
-            />
+            <HeroScene reduced={false} count={400} speed={0.5} className="absolute inset-0 h-full w-full" />
             <div className="absolute inset-0" style={{ opacity: 0.7 }}>
               <AboutGalaxy
                 transparent
-                starCount={mobile ? 720 : 1000}
-                fieldCount={mobile ? 56 : 80}
+                starCount={1000}
+                fieldCount={80}
                 armCount={4}
-                rotationSpeed={mobile ? 0.04 : 0.045}
+                rotationSpeed={0.045}
                 className="absolute inset-0 h-full w-full"
               />
             </div>

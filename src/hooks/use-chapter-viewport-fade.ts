@@ -33,6 +33,8 @@ function syncAll() {
     if (opacity === entry.lastOpacity) continue;
     entry.lastOpacity = opacity;
     entry.layer.style.opacity = String(opacity);
+    // Fully off: drop from compositor so sibling canvases don't fight
+    entry.layer.style.visibility = opacity === 0 ? 'hidden' : 'visible';
   }
 }
 

@@ -7,12 +7,14 @@ type HeroSceneProps = {
   reduced?: boolean;
   /** Number of stars */
   count?: number;
-  /** Travel speed — must be > 0.3 for hyperspace streaks */
+  /** Travel speed — must be > 0.3 for hyperspace streaks. Ignored when static. */
   speed?: number;
   /** Star color */
   starColor?: string;
   /** Enable twinkling */
   twinkle?: boolean;
+  /** No depth/parallax motion — use on mobile to avoid scroll flicker */
+  staticField?: boolean;
 };
 
 type Star = {
@@ -23,9 +25,19 @@ type Star = {
   twinkleOffset: number;
 };
 
+type FlatStar = {
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+  twinkleSpeed: number;
+  twinkleOffset: number;
+};
+
 /**
  * Exact Starfield from shadcn.io — always live from mount.
  * https://www.shadcn.io/background/starfield
+ * Mobile: pass staticField to disable hyperspace parallax.
  */
 export function HeroScene({
   className,
@@ -34,6 +46,7 @@ export function HeroScene({
   speed = 0.5,
   starColor = '#ffffff',
   twinkle = true,
+  staticField = false,
 }: HeroSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,7 +57,7 @@ export function HeroScene({
     const container = containerRef.current;
     if (!canvas || !container) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
     const rect = container.getBoundingClientRect();
@@ -58,16 +71,8 @@ export function HeroScene({
     let running = document.visibilityState === 'visible';
     const maxDepth = 1500;
     const mobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
-
-    const createStar = (): Star => ({
-      x: (Math.random() - 0.5) * width * 2,
-      y: (Math.random() - 0.5) * height * 2,
-      z: Math.random() * maxDepth,
-      twinkleSpeed: Math.random() * 0.02 + 0.01,
-      twinkleOffset: Math.random() * Math.PI * 2,
-    });
-
-    const stars: Star[] = Array.from({ length: count }, createStar);
+    const flat = staticField || mobile;
+    let redrawFlat: ((force?: boolean) => void) | null = null;
 
     const handleResize = () => {
       const next = container.getBoundingClientRect();
@@ -78,16 +83,86 @@ export function HeroScene({
       canvas.height = height;
       ctx.fillStyle = '#0a0a0f';
       ctx.fillRect(0, 0, width, height);
+      redrawFlat?.(true);
     };
 
     const ro = new ResizeObserver(handleResize);
     ro.observe(container);
 
+    // --- Static field (no depth parallax) ---
+    if (flat) {
+      const flatStars: FlatStar[] = Array.from({ length: count }, () => ({
+        x: Math.random(),
+        y: Math.random(),
+        size: 0.5 + Math.random() * 1.6,
+        opacity: 0.25 + Math.random() * 0.65,
+        twinkleSpeed: 0.4 + Math.random() * 0.9,
+        twinkleOffset: Math.random() * Math.PI * 2,
+      }));
+
+      const drawFlat = (force = false) => {
+        if (!running && !force) return;
+        tick++;
+        ctx.fillStyle = '#0a0a0f';
+        ctx.fillRect(0, 0, width, height);
+
+        for (const star of flatStars) {
+          const tw = twinkle
+            ? 0.9 + 0.1 * Math.sin(tick * 0.012 * star.twinkleSpeed + star.twinkleOffset)
+            : 1;
+          ctx.globalAlpha = star.opacity * tw;
+          ctx.fillStyle = starColor;
+          ctx.beginPath();
+          ctx.arc(star.x * width, star.y * height, star.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        if (twinkle && running) {
+          animationId = requestAnimationFrame(() => drawFlat());
+        }
+      };
+      redrawFlat = drawFlat;
+
+      drawFlat(true);
+      if (twinkle) animationId = requestAnimationFrame(() => drawFlat());
+
+      const onVis = () => {
+        const show = document.visibilityState === 'visible';
+        if (show && !running) {
+          running = true;
+          if (twinkle) animationId = requestAnimationFrame(() => drawFlat());
+          else drawFlat(true);
+        } else if (!show) {
+          running = false;
+          cancelAnimationFrame(animationId);
+        }
+      };
+      document.addEventListener('visibilitychange', onVis);
+
+      return () => {
+        running = false;
+        cancelAnimationFrame(animationId);
+        ro.disconnect();
+        document.removeEventListener('visibilitychange', onVis);
+      };
+    }
+
+    // --- Desktop hyperspace field ---
+    const createStar = (): Star => ({
+      x: (Math.random() - 0.5) * width * 2,
+      y: (Math.random() - 0.5) * height * 2,
+      z: Math.random() * maxDepth,
+      twinkleSpeed: Math.random() * 0.02 + 0.01,
+      twinkleOffset: Math.random() * Math.PI * 2,
+    });
+
+    const stars: Star[] = Array.from({ length: count }, createStar);
+
     const animate = () => {
       if (!running) return;
       tick++;
 
-      // Fade for trails — exact shadcn.io
       ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
       ctx.fillRect(0, 0, width, height);
 
@@ -113,9 +188,7 @@ export function HeroScene({
         let opacity = (1 - star.z / maxDepth) * 0.9 + 0.1;
 
         if (twinkle && star.twinkleSpeed > 0.015) {
-          opacity *= mobile
-            ? 0.88 + 0.12 * Math.sin(tick * star.twinkleSpeed * 0.5 + star.twinkleOffset)
-            : 0.7 + 0.3 * Math.sin(tick * star.twinkleSpeed + star.twinkleOffset);
+          opacity *= 0.7 + 0.3 * Math.sin(tick * star.twinkleSpeed + star.twinkleOffset);
         }
 
         ctx.beginPath();
@@ -163,7 +236,7 @@ export function HeroScene({
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [reduced, count, speed, starColor, twinkle]);
+  }, [reduced, count, speed, starColor, twinkle, staticField]);
 
   if (reduced) {
     return (
@@ -186,10 +259,10 @@ export function HeroScene({
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       <div
-        className="pointer-events-none absolute inset-0 opacity-30"
+        className="pointer-events-none absolute inset-0 opacity-40 md:opacity-30"
         style={{
           background:
-            'radial-gradient(ellipse at 30% 40%, rgba(56, 100, 180, 0.15) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(100, 60, 150, 0.1) 0%, transparent 50%)',
+            'radial-gradient(ellipse at 30% 40%, rgba(56, 100, 180, 0.22) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(100, 60, 150, 0.16) 0%, transparent 50%)',
         }}
       />
     </div>

@@ -19,7 +19,7 @@ export function SpaceArc({ children }: SpaceArcProps) {
     <>
       <div
         ref={layerRef}
-        className="pointer-events-none fixed inset-0 z-0 will-change-[opacity]"
+        className="pointer-events-none fixed inset-0 z-0"
         aria-hidden
       >
         <div className="absolute inset-0 bg-[#0a0a0f]" />

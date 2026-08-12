@@ -80,10 +80,6 @@ function prefersReduced() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function isMobileLayout(width: number) {
-  return width > 0 && width < 768;
-}
-
 function getOrbit(id: string) {
   return ORBITS[id] ?? FALLBACK_ORBIT;
 }
@@ -491,6 +487,7 @@ function OrbitingSatellite({
   selected,
   dimmed,
   hovered,
+  mobile,
   onSelect,
   onHover,
 }: {
@@ -498,15 +495,13 @@ function OrbitingSatellite({
   selected: boolean;
   dimmed: boolean;
   hovered: boolean;
+  mobile: boolean;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
 }) {
   const group = useRef<THREE.Group>(null);
-  const angle = useRef(getOrbit(project.id).angle0);
   const orbit = getOrbit(project.id);
   const theme = getProjectTheme(project.id);
-  const size = useThree((s) => s.size);
-  const mobile = isMobileLayout(size.width);
   const active = selected || hovered;
   // Per-instance scratch — shared globals flicker when many sats update in one frame
   const scratch = useMemo(
@@ -519,10 +514,9 @@ function OrbitingSatellite({
     [],
   );
 
-  useFrame((_, dt) => {
+  useFrame((state, dt) => {
     const g = group.current;
     if (!g) return;
-    const capped = Math.min(dt, mobile ? 0.05 : 0.033);
 
     // Selected sat is rendered sharp on the overlay canvas — hide here
     if (selected) {
@@ -531,35 +525,22 @@ function OrbitingSatellite({
     }
     g.visible = !dimmed;
 
-    angle.current += orbit.speed * capped;
-    orbitPoint(angle.current, orbit, scratch.pos);
+    // Wall-clock orbit — avoids capped-dt stutter when frames hitch (Lenis/GPU)
+    orbitPoint(orbit.angle0 + orbit.speed * state.clock.elapsedTime, orbit, scratch.pos);
+    g.position.copy(scratch.pos);
 
-    // Direct placement on mobile — lerp + variable frame times reads as flicker
-    if (mobile) {
-      g.position.copy(scratch.pos);
-    } else {
-      g.position.lerp(scratch.pos, 1 - Math.exp(-6 * capped));
-    }
-
+    const frameDt = Math.min(dt, 0.05);
     const targetScale = dimmed
       ? orbit.scale * 0.85
       : hovered
         ? orbit.scale * (mobile ? 1.12 : 1.2)
         : orbit.scale;
-    if (mobile && !hovered && !dimmed) {
-      g.scale.setScalar(targetScale);
-    } else {
-      g.scale.setScalar(THREE.MathUtils.damp(g.scale.x, targetScale, mobile ? 4 : 6, capped));
-    }
+    g.scale.setScalar(THREE.MathUtils.damp(g.scale.x, targetScale, 6, frameDt));
 
     scratch.m.lookAt(g.position, _lookTarget, _up);
     scratch.qNadir.setFromRotationMatrix(scratch.m);
     scratch.q.copy(scratch.qNadir).multiply(_qOffset);
-    if (mobile) {
-      g.quaternion.slerp(scratch.q, 1 - Math.exp(-8 * capped));
-    } else {
-      g.quaternion.slerp(scratch.q, 1 - Math.exp(-4 * capped));
-    }
+    g.quaternion.slerp(scratch.q, 1 - Math.exp(-5 * frameDt));
   });
 
   return (
@@ -750,12 +731,14 @@ function OrbitGuides({
   items,
   hoveredId,
   selectedId,
+  mobile,
   onSelect,
   onHover,
 }: {
   items: ProjectItem[];
   hoveredId: string | null;
   selectedId: string | null;
+  mobile: boolean;
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
 }) {
@@ -773,8 +756,6 @@ function OrbitGuides({
   }, [items]);
 
   const focusMode = selectedId != null;
-  const size = useThree((s) => s.size);
-  const mobile = isMobileLayout(size.width);
 
   return (
     <>
@@ -875,8 +856,8 @@ function CameraRig({
     if (!controls) return;
     const targetY = mobile ? 0.18 : 0.3;
     _origin.set(0, targetY, 0);
-    controls.target.lerp(_origin, 1 - Math.exp(-2.2 * Math.min(dt, 0.033)));
-    controls.update();
+    // Soft follow only — OrbitControls' own useFrame already calls update()
+    controls.target.lerp(_origin, 1 - Math.exp(-2.2 * Math.min(dt, 0.05)));
   });
   return null;
 }
@@ -940,7 +921,7 @@ function BeltScene({
         ref={controlsRef}
         makeDefault
         enableDamping
-        dampingFactor={mobile ? 0.12 : 0.08}
+        dampingFactor={0.08}
         enablePan={false}
         enableZoom={false}
         minDistance={mobile ? 10.2 : 8.8}
@@ -967,6 +948,7 @@ function BeltScene({
           items={items}
           hoveredId={hoveredId}
           selectedId={selectedId}
+          mobile={mobile}
           onSelect={onSelect}
           onHover={onHover}
         />
@@ -978,6 +960,7 @@ function BeltScene({
             selected={selectedId === project.id}
             dimmed={focusMode && selectedId !== project.id}
             hovered={hoveredId === project.id}
+            mobile={mobile}
             onSelect={onSelect}
             onHover={onHover}
           />

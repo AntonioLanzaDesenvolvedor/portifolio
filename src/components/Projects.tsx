@@ -40,7 +40,7 @@ export function Projects() {
       */}
       <div
         className={cn(
-          'relative mx-auto h-[min(125vw,640px)] w-full max-w-7xl sm:h-[960px]',
+          'relative mx-auto h-[min(125vw,640px)] w-full max-w-7xl md:h-[960px]',
           focusOpen && 'pointer-events-none',
         )}
       >

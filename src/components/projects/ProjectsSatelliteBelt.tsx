@@ -60,12 +60,7 @@ const SAT_MODEL = '/models/satellite/satellite.glb';
 
 const _lookTarget = new THREE.Vector3(0, 0, 0);
 const _up = new THREE.Vector3(0, 1, 0);
-const _m = new THREE.Matrix4();
-const _q = new THREE.Quaternion();
-const _qNadir = new THREE.Quaternion();
 const _qOffset = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0));
-const _pos = new THREE.Vector3();
-const _origin = new THREE.Vector3(0, 0.3, 0);
 /** Far enough that full orbits stay inside the canvas (bottom safe margin) */
 const CAM = { position: [0, 0.3, 9.7] as [number, number, number], fov: 33 };
 const CAM_MOBILE = { position: [0, 0.25, 11.2] as [number, number, number], fov: 35 };
@@ -135,8 +130,9 @@ function RealEarth({
   }, [color, bump, night, spec, cloudMap, aniso]);
 
   useFrame((_, dt) => {
-    if (earth.current) earth.current.rotation.y += dt * (dimmed ? 0.015 : 0.04);
-    if (clouds.current) clouds.current.rotation.y += dt * (dimmed ? 0.02 : 0.055);
+    const t = Math.min(dt, 0.05);
+    if (earth.current) earth.current.rotation.y += t * (dimmed ? 0.015 : 0.04);
+    if (clouds.current) clouds.current.rotation.y += t * (dimmed ? 0.02 : 0.055);
   });
 
   return (
@@ -220,7 +216,7 @@ function RealEarth({
   );
 }
 
-function SatelliteModel() {
+function SatelliteModel({ mobile = false }: { mobile?: boolean }) {
   const { scene } = useGLTF(SAT_MODEL);
   const cloned = useMemo(() => {
     const root = scene.clone(true);
@@ -229,17 +225,25 @@ function SatelliteModel() {
       if (mesh.isMesh) {
         mesh.castShadow = false;
         mesh.receiveShadow = false;
+        mesh.frustumCulled = true;
         const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const mat of mats) {
           const std = mat as THREE.MeshStandardMaterial;
-          if (std.map) std.map.anisotropy = 4;
-          std.envMapIntensity = 1.15;
+          if (std.map) {
+            std.map.anisotropy = 8;
+            std.map.generateMipmaps = true;
+            std.map.minFilter = THREE.LinearMipmapLinearFilter;
+            std.map.magFilter = THREE.LinearFilter;
+            std.map.needsUpdate = true;
+          }
+          // Slightly less env specular crawl on low-DPR mobile
+          std.envMapIntensity = mobile ? 0.85 : 1.15;
           std.needsUpdate = true;
         }
       }
     });
     return root;
-  }, [scene]);
+  }, [scene, mobile]);
 
   return (
     <Center>
@@ -500,6 +504,7 @@ function OrbitingSatellite({
   onHover: (id: string | null) => void;
 }) {
   const group = useRef<THREE.Group>(null);
+  const angle = useRef(getOrbit(project.id).angle0);
   const orbit = getOrbit(project.id);
   const theme = getProjectTheme(project.id);
   const active = selected || hovered;
@@ -508,13 +513,12 @@ function OrbitingSatellite({
     () => ({
       pos: new THREE.Vector3(),
       m: new THREE.Matrix4(),
-      q: new THREE.Quaternion(),
       qNadir: new THREE.Quaternion(),
     }),
     [],
   );
 
-  useFrame((state, dt) => {
+  useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
 
@@ -525,22 +529,24 @@ function OrbitingSatellite({
     }
     g.visible = !dimmed;
 
-    // Wall-clock orbit — avoids capped-dt stutter when frames hitch (Lenis/GPU)
-    orbitPoint(orbit.angle0 + orbit.speed * state.clock.elapsedTime, orbit, scratch.pos);
+    // Integrate with real dt (only clamp tab-return spikes). No position lerp —
+    // chasing a moving orbit reads as stutter on desktop.
+    const step = Math.min(Math.max(dt, 0), 0.1);
+    angle.current += orbit.speed * step;
+    orbitPoint(angle.current, orbit, scratch.pos);
     g.position.copy(scratch.pos);
 
-    const frameDt = Math.min(dt, 0.05);
     const targetScale = dimmed
       ? orbit.scale * 0.85
       : hovered
         ? orbit.scale * (mobile ? 1.12 : 1.2)
         : orbit.scale;
-    g.scale.setScalar(THREE.MathUtils.damp(g.scale.x, targetScale, 6, frameDt));
+    g.scale.setScalar(THREE.MathUtils.damp(g.scale.x, targetScale, 8, step));
 
+    // Exact nadir attitude — slerp lagged and made textures "swim" while moving
     scratch.m.lookAt(g.position, _lookTarget, _up);
     scratch.qNadir.setFromRotationMatrix(scratch.m);
-    scratch.q.copy(scratch.qNadir).multiply(_qOffset);
-    g.quaternion.slerp(scratch.q, 1 - Math.exp(-5 * frameDt));
+    g.quaternion.copy(scratch.qNadir).multiply(_qOffset);
   });
 
   return (
@@ -562,7 +568,7 @@ function OrbitingSatellite({
       }}
     >
       <Suspense fallback={null}>
-        <SatelliteModel />
+        <SatelliteModel mobile={mobile} />
       </Suspense>
 
       <mesh visible={false}>
@@ -851,14 +857,12 @@ function CameraRig({
   controlsRef: MutableRefObject<ControlsRef | null>;
   mobile: boolean;
 }) {
-  useFrame((_, dt) => {
+  // Target is set in AdaptiveBeltFrame — avoid per-frame lerp fighting OrbitControls
+  useLayoutEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
-    const targetY = mobile ? 0.18 : 0.3;
-    _origin.set(0, targetY, 0);
-    // Soft follow only — OrbitControls' own useFrame already calls update()
-    controls.target.lerp(_origin, 1 - Math.exp(-2.2 * Math.min(dt, 0.05)));
-  });
+    controls.target.set(0, mobile ? 0.18 : 0.3, 0);
+  }, [controlsRef, mobile]);
   return null;
 }
 
@@ -866,22 +870,48 @@ function CameraRig({
 function AdaptiveBeltFrame({
   children,
   mobile,
+  controlsRef,
+  spin,
+  spinSpeed,
 }: {
   children: ReactNode;
   mobile: boolean;
+  controlsRef: MutableRefObject<ControlsRef | null>;
+  /** Idle turntable — dt-based (OrbitControls.autoRotate is fixed°/frame and stutters off-60fps) */
+  spin: boolean;
+  spinSpeed: number;
 }) {
   const { camera } = useThree();
+  const root = useRef<THREE.Group>(null);
 
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
     const cfg = mobile ? CAM_MOBILE : CAM;
+    const targetY = mobile ? 0.18 : 0.3;
     cam.position.set(cfg.position[0], cfg.position[1], cfg.position[2]);
+    cam.up.set(0, 1, 0);
     cam.fov = cfg.fov;
+    cam.lookAt(0, targetY, 0);
     cam.updateProjectionMatrix();
-  }, [camera, mobile]);
+    const controls = controlsRef.current;
+    if (controls) {
+      controls.target.set(0, targetY, 0);
+      controls.update();
+    }
+  }, [camera, mobile, controlsRef]);
+
+  useFrame((_, dt) => {
+    if (!spin || !root.current) return;
+    // Same units as three-stdlib autoRotateSpeed → rad/s
+    root.current.rotation.y += ((Math.PI * 2) / 60) * spinSpeed * Math.min(Math.max(dt, 0), 0.1);
+  });
 
   return (
-    <group position={[0, mobile ? 0.12 : 0.3, 0]} scale={mobile ? SCENE_SCALE_MOBILE : SCENE_SCALE}>
+    <group
+      ref={root}
+      position={[0, mobile ? 0.12 : 0.3, 0]}
+      scale={mobile ? SCENE_SCALE_MOBILE : SCENE_SCALE}
+    >
       {children}
     </group>
   );
@@ -908,6 +938,7 @@ function BeltScene({
   const controlsRef = useRef<ControlsRef | null>(null);
   const [spinEnabled, setSpinEnabled] = useState(true);
   const focusMode = selectedId != null;
+  const idleSpin = spinEnabled && !focusMode && !hoveredId;
 
   return (
     <>
@@ -928,8 +959,7 @@ function BeltScene({
         maxDistance={mobile ? 13 : 12}
         maxPolarAngle={Math.PI * (mobile ? 0.68 : 0.72)}
         minPolarAngle={Math.PI * (mobile ? 0.32 : 0.28)}
-        autoRotate={spinEnabled && !selectedId && !hoveredId}
-        autoRotateSpeed={mobile ? 0.32 : 0.4}
+        autoRotate={false}
         enabled={!focusMode}
         onStart={() => setSpinEnabled(false)}
         onEnd={() => {
@@ -939,7 +969,12 @@ function BeltScene({
 
       <CameraRig controlsRef={controlsRef} mobile={mobile} />
 
-      <AdaptiveBeltFrame mobile={mobile}>
+      <AdaptiveBeltFrame
+        mobile={mobile}
+        controlsRef={controlsRef}
+        spin={idleSpin}
+        spinSpeed={mobile ? 0.32 : 0.4}
+      >
         <Suspense fallback={null}>
           <RealEarth dimmed={focusMode} onSelectEarth={onClear} mobile={mobile} />
         </Suspense>
@@ -1433,17 +1468,19 @@ export function ProjectsSatelliteBelt({
         )}
       >
         <Canvas
-          dpr={mobile ? 1 : [1, 1.5]}
+          key={mobile ? 'belt-mobile' : 'belt-desktop'}
+          dpr={[1, 1.25]}
           // scroll:false stops R3F remeasuring every scroll tick (blank flash on mobile)
           resize={{
             scroll: false,
-            debounce: mobile ? { scroll: 0, resize: 200 } : { scroll: 0, resize: 0 },
+            debounce: mobile ? { scroll: 0, resize: 200 } : { scroll: 0, resize: 50 },
           }}
           gl={{
-            antialias: !mobile,
+            antialias: true,
             alpha: true,
             powerPreference: 'high-performance',
             stencil: false,
+            depth: true,
           }}
           camera={{ position: CAM.position, fov: CAM.fov, near: 0.05, far: 120 }}
           frameloop={inView && !selectedId ? 'always' : 'never'}

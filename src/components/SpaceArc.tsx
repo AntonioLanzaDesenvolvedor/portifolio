@@ -7,7 +7,7 @@ type SpaceArcProps = {
 };
 
 /**
- * Skills + Projects nebula — fixed full-viewport, fades with chapter coverage.
+ * Skills + Projects galaxy — fixed full-viewport, fades with chapter coverage.
  */
 export function SpaceArc({ children }: SpaceArcProps) {
   const chapterRef = useRef<HTMLDivElement>(null);
@@ -28,7 +28,7 @@ export function SpaceArc({ children }: SpaceArcProps) {
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(ellipse at 30% 35%, rgba(56,100,180,0.12) 0%, transparent 48%), radial-gradient(ellipse at 75% 65%, rgba(100,60,150,0.1) 0%, transparent 50%)',
+              'radial-gradient(ellipse at 50% 45%, rgba(220,230,255,0.04) 0%, transparent 42%), radial-gradient(ellipse at 28% 60%, rgba(56,100,180,0.08) 0%, transparent 50%), radial-gradient(ellipse at 72% 40%, rgba(100,60,150,0.07) 0%, transparent 48%)',
           }}
         />
       </div>

@@ -156,17 +156,22 @@
   }
 
   .entrance-nav {
+    opacity: 0;
     transform: translate3d(0, -12px, 0);
+    pointer-events: none;
   }
 
-  html[data-entrance-ready='true'] .entrance-nav {
-    animation: entrance-nav-slide 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  /* Reveal nav only after hero intro — not on entrance-ready (that flashed early) */
+  html[data-hero-intro='done'] .entrance-nav {
+    pointer-events: auto;
+    animation: entrance-nav-slide 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
 
   html[data-entrance-reduced='true'] .entrance-nav {
     animation: none;
     opacity: 1;
     transform: none;
+    pointer-events: auto;
   }
 
   /* Hero — Paper Shaders atmosphere + cinematic type */
@@ -214,6 +219,11 @@
     margin-bottom: -0.14em;
   }
 
+  .hero-role {
+    font-variant-ligatures: none;
+    text-rendering: geometricPrecision;
+  }
+
   /* Hide chrome while cinematic title card plays */
   html[data-hero-intro='playing'] .entrance-nav {
     opacity: 0 !important;
@@ -221,8 +231,20 @@
     animation: none !important;
   }
 
-  html:not([data-entrance-ready='true']):not([data-entrance-reduced='true']) .hero-cinematic {
+  /*
+   * Keep hero copy invisible until GSAP owns the intro.
+   * Do NOT unlock on data-entrance-ready alone — that attribute flips
+   * before React/useGSAP run, which caused a one-frame full flash.
+   */
+  html:not([data-hero-intro='playing']):not([data-hero-intro='done']):not([data-entrance-reduced='true']) .hero-cinematic {
     opacity: 0;
+    visibility: hidden;
+  }
+
+  /* Keep scrollbar gutter during intro lock — overflow:hidden was shifting the whole page */
+  html:not([data-hero-intro='done']):not([data-entrance-reduced='true']),
+  html:not([data-hero-intro='done']):not([data-entrance-reduced='true']) body {
+    overscroll-behavior: none;
   }
 }
 
@@ -235,9 +257,11 @@
 
 @keyframes entrance-nav-slide {
   from {
+    opacity: 0;
     transform: translate3d(0, -12px, 0);
   }
   to {
+    opacity: 1;
     transform: translate3d(0, 0, 0);
   }
 }
@@ -245,6 +269,8 @@
 html {
   scroll-behavior: smooth;
   overflow-x: clip;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--primary) / 0.5) transparent;
 }

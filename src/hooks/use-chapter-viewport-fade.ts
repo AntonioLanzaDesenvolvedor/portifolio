@@ -12,19 +12,29 @@ const entries: FadeEntry[] = [];
 let listening = false;
 let lenisBound: { off: (e: 'scroll', cb: () => void) => void } | null = null;
 let lenisRetry = 0;
+let raf = 0;
 
 /**
  * Fixed full-viewport chapter backgrounds, faded by on-screen coverage.
  * Opacity only — never visibility:hidden (that made layers vanish on mobile).
  * Soft crossfade on all devices; no scroll-pause (pausing wiped canvases blank).
  */
-function syncAll() {
+function syncAllNow() {
   if (entries.length === 0) return;
 
   const vh = window.innerHeight || 1;
 
   for (const entry of entries) {
     const rect = entry.chapter.getBoundingClientRect();
+    // Fully off-screen → hard zero (never leave Hero stars under Projects)
+    if (rect.bottom <= 0 || rect.top >= vh) {
+      if (entry.lastOpacity !== 0) {
+        entry.lastOpacity = 0;
+        entry.layer.style.opacity = '0';
+      }
+      continue;
+    }
+
     const visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0);
     let opacity = Math.max(0, Math.min(1, visible / vh));
     if (opacity < 0.03) opacity = 0;
@@ -34,6 +44,15 @@ function syncAll() {
     entry.lastOpacity = opacity;
     entry.layer.style.opacity = String(opacity);
   }
+}
+
+/** One sync per frame — Lenis + native scroll must not double-fire layout thrash */
+function syncAll() {
+  if (raf) return;
+  raf = requestAnimationFrame(() => {
+    raf = 0;
+    syncAllNow();
+  });
 }
 
 function bindLenis() {
@@ -64,6 +83,10 @@ function maybeStopListening() {
   window.removeEventListener('resize', syncAll);
   lenisBound?.off('scroll', syncAll);
   lenisBound = null;
+  if (raf) {
+    cancelAnimationFrame(raf);
+    raf = 0;
+  }
 }
 
 export function useChapterViewportFade(

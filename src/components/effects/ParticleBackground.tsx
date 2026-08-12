@@ -12,8 +12,8 @@ type Particle = {
 };
 
 const CONNECTION_DISTANCE = 130;
-const PARTICLE_DENSITY_DESKTOP = 11000;
-const PARTICLE_DENSITY_MOBILE = 18000;
+const PARTICLE_DENSITY_DESKTOP = 16000;
+const PARTICLE_DENSITY_MOBILE = 22000;
 
 function createParticle(width: number, height: number): Particle {
   const speed = Math.random() * 0.22 + 0.06;
@@ -70,6 +70,7 @@ export function ParticleBackground() {
     let mobile = isMobileViewport();
     let layoutW = 0;
     let layoutH = 0;
+    let frame = 0;
 
     const resize = () => {
       mobile = isMobileViewport();
@@ -80,7 +81,7 @@ export function ParticleBackground() {
       layoutW = nextW;
       layoutH = nextH;
 
-      const dpr = mobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = mobile ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width = Math.max(1, Math.floor(layoutW * dpr));
       canvas.height = Math.max(1, Math.floor(layoutH * dpr));
       canvas.style.width = `${layoutW}px`;
@@ -103,7 +104,26 @@ export function ParticleBackground() {
 
     const updateTarget = () => {
       // Contact boost is desktop-only — on mobile it tanks scroll.
-      targetIntensity = mobile ? 0 : getContactIntensity();
+      // Skip particle work while Hero dominates the viewport (biggest scroll hitch zone).
+      if (mobile) {
+        targetIntensity = 0;
+      } else {
+        const hero = document.getElementById('hero');
+        if (hero) {
+          const r = hero.getBoundingClientRect();
+          const vh = window.innerHeight || 1;
+          const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+          if (visible / vh > 0.45) {
+            targetIntensity = 0;
+            if (prefersReducedMotion) {
+              intensity = 0;
+              draw();
+            }
+            return;
+          }
+        }
+        targetIntensity = getContactIntensity();
+      }
       if (prefersReducedMotion) {
         intensity = targetIntensity;
         draw();
@@ -113,6 +133,7 @@ export function ParticleBackground() {
     const draw = () => {
       const w = layoutW || window.innerWidth;
       const h = layoutH || window.innerHeight;
+      frame++;
 
       if (!prefersReducedMotion && !mobile) {
         intensity += (targetIntensity - intensity) * 0.08;
@@ -124,6 +145,13 @@ export function ParticleBackground() {
       }
 
       const t = intensity;
+      // Away from contact: paint every other frame — particles are ambient, not the scroll bottleneck
+      const idle = t < 0.03;
+      if (idle && frame % 2 === 1) {
+        animationId = requestAnimationFrame(draw);
+        return;
+      }
+
       const connectionDistance = mobile ? 90 : lerp(CONNECTION_DISTANCE, 148, t);
       const lineAlphaMax = mobile ? 0.07 : lerp(0.1, 0.2, t);
       const lineWidth = mobile ? 0.5 : lerp(0.5, 0.7, t);
@@ -133,10 +161,11 @@ export function ParticleBackground() {
 
       ctx.clearRect(0, 0, w, h);
 
+      const move = !prefersReducedMotion;
       for (const p of particles) {
-        if (!prefersReducedMotion) {
-          p.x += p.vx;
-          p.y += p.vy;
+        if (move) {
+          p.x += p.vx * (idle ? 1.6 : 1);
+          p.y += p.vy * (idle ? 1.6 : 1);
           if (p.x < 0) p.x = w;
           if (p.x > w) p.x = 0;
           if (p.y < 0) p.y = h;
@@ -146,7 +175,6 @@ export function ParticleBackground() {
         const size = p.size * sizeBoost;
         const alpha = Math.min(1, p.opacity * opacityBoost);
 
-        // Soft glow only on desktop contact boost — never on mobile.
         if (glowStrength > 0.01) {
           ctx.beginPath();
           ctx.arc(p.x, p.y, size * 2.4, 0, Math.PI * 2);
@@ -163,24 +191,26 @@ export function ParticleBackground() {
         ctx.fill();
       }
 
-      // Skip every other pair check on mobile to cut O(n²) cost.
-      const step = mobile ? 2 : 1;
-      for (let i = 0; i < particles.length; i += step) {
-        for (let j = i + 1; j < particles.length; j += step) {
-          const a = particles[i];
-          const b = particles[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+      // O(n²) links only near contact — idle ambient dots don't need the web
+      if (!idle) {
+        const step = mobile ? 2 : 1;
+        for (let i = 0; i < particles.length; i += step) {
+          for (let j = i + 1; j < particles.length; j += step) {
+            const a = particles[i];
+            const b = particles[j];
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist < connectionDistance) {
-            const alpha = (1 - dist / connectionDistance) * lineAlphaMax;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
-            ctx.lineWidth = lineWidth;
-            ctx.stroke();
+            if (dist < connectionDistance) {
+              const alpha = (1 - dist / connectionDistance) * lineAlphaMax;
+              ctx.beginPath();
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
+              ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`;
+              ctx.lineWidth = lineWidth;
+              ctx.stroke();
+            }
           }
         }
       }

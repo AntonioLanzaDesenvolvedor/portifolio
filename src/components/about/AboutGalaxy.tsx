@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { isSignificantSizeChange } from '@/lib/stable-size';
+import { getLenisInstance } from '@/lib/lenis-instance';
 import { cn } from '@/lib/utils';
 
 type AboutGalaxyProps = {
@@ -85,8 +86,8 @@ export function AboutGalaxy({
 
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const mobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
-    const spiralN = mobile ? Math.min(starCount, 420) : starCount;
-    const fieldN = mobile ? Math.min(fieldCount, 48) : fieldCount;
+    const spiralN = mobile ? Math.min(starCount, 420) : Math.min(starCount, 650);
+    const fieldN = mobile ? Math.min(fieldCount, 48) : Math.min(fieldCount, 60);
 
     const rand = mulberry32((0x9e3779b1 ^ (131 * armCount) ^ spiralN) >>> 0);
     const spiralTurns = 4 * Math.PI;
@@ -286,6 +287,7 @@ export function AboutGalaxy({
       ctx.globalCompositeOperation = 'source-over';
     };
 
+    let paintGate = 0;
     const tick = (ts: number) => {
       if (!running) return;
       const dt = lastTs === 0 ? 16 : Math.min(48, ts - lastTs);
@@ -295,12 +297,18 @@ export function AboutGalaxy({
       parallaxX += (targetParallaxX - parallaxX) * 0.06;
       parallaxY += (targetParallaxY - parallaxY) * 0.06;
 
-      draw();
+      paintGate++;
+      // Throttle harder while fading — frees main thread for Lenis during About→Skills
+      const fadeSkip = chapterOpacity < 0.85 ? 3 : 2;
+      if (paintGate % fadeSkip === 0) draw();
       raf = requestAnimationFrame(tick);
     };
 
+    let chapterHidden = false;
+    let chapterOpacity = 1;
+
     const start = () => {
-      if (running || prefersReduced || !inView || document.hidden) return;
+      if (running || prefersReduced || !inView || document.hidden || chapterHidden) return;
       running = true;
       lastTs = 0;
       raf = requestAnimationFrame(tick);
@@ -312,8 +320,39 @@ export function AboutGalaxy({
       cancelAnimationFrame(raf);
     };
 
+    // Fixed chapter layer may be opacity:0 while still "intersecting" — pause to free GPU
+    const chapterLayer = () => {
+      let n: HTMLElement | null = container;
+      while (n) {
+        if (n.classList.contains('fixed')) return n;
+        n = n.parentElement;
+      }
+      return null;
+    };
+
+    // Hysteresis so Hero/About and Skills galaxies don't both animate during crossfade
+    const HIDE_BELOW = 0.22;
+    const SHOW_ABOVE = 0.4;
+
+    const syncChapterFade = () => {
+      const layer = chapterLayer();
+      if (!layer) return;
+      const op = parseFloat(layer.style.opacity || getComputedStyle(layer).opacity || '1');
+      chapterOpacity = op;
+
+      if (chapterHidden) {
+        if (op >= SHOW_ABOVE) {
+          chapterHidden = false;
+          start();
+        }
+      } else if (op < HIDE_BELOW) {
+        chapterHidden = true;
+        stop();
+      }
+    };
+
     const onPointerMove = (e: PointerEvent) => {
-      if (mobile || prefersReduced) return;
+      if (mobile || prefersReduced || chapterHidden) return;
       const rect = container.getBoundingClientRect();
       const nx = ((e.clientX - rect.left) / Math.max(1, rect.width) - 0.5) * 2;
       const ny = ((e.clientY - rect.top) / Math.max(1, rect.height) - 0.5) * 2;
@@ -327,12 +366,11 @@ export function AboutGalaxy({
     };
 
     resize();
-    if (prefersReduced) draw();
-    else start();
+    draw(); // one static frame even when paused — no blank flash on fade-in
+    if (!prefersReduced) start();
 
     const ro = new ResizeObserver(() => {
       if (!resize()) return;
-      // Always redraw after buffer reset — never leave a blank canvas
       draw();
     });
     ro.observe(container);
@@ -355,14 +393,36 @@ export function AboutGalaxy({
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     container.addEventListener('pointerleave', onPointerLeave);
     document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('scroll', syncChapterFade, { passive: true });
+
+    let lenisOff: (() => void) | null = null;
+    const bindLenisFade = () => {
+      const lenis = getLenisInstance();
+      if (!lenis || lenisOff) return;
+      lenis.on('scroll', syncChapterFade);
+      lenisOff = () => lenis.off('scroll', syncChapterFade);
+    };
+    bindLenisFade();
+    const lenisRetry = window.setInterval(() => {
+      bindLenisFade();
+      if (lenisOff) window.clearInterval(lenisRetry);
+    }, 50);
+    window.setTimeout(() => window.clearInterval(lenisRetry), 2000);
+
+    syncChapterFade();
+    const fadePoll = window.setInterval(syncChapterFade, 500);
 
     return () => {
       stop();
       ro.disconnect();
       io.disconnect();
+      window.clearInterval(lenisRetry);
+      window.clearInterval(fadePoll);
+      lenisOff?.();
       window.removeEventListener('pointermove', onPointerMove);
       container.removeEventListener('pointerleave', onPointerLeave);
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('scroll', syncChapterFade);
     };
   }, [starCount, fieldCount, armCount, rotationSpeed, background, transparent]);
 

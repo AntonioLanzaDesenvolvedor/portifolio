@@ -4,11 +4,16 @@ import { useI18n } from '@/i18n/i18n';
 import { useEntrance } from '@/hooks/use-entrance';
 import { gsap, ScrollTrigger, useGSAP } from '@/lib/gsap';
 import { heroMotion } from '@/components/hero/hero-motion';
+import { getLenisInstance } from '@/lib/lenis-instance';
 
 const ROLE_HOLD_MS = 3200;
 
 function prefersReduced() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function unlockPageScroll() {
+  getLenisInstance()?.start();
 }
 
 export function Hero() {
@@ -51,12 +56,11 @@ export function Hero() {
       const title = titleRef.current;
       if (!section || !title || !ready) return;
 
-      const cleanups: Array<() => void> = [];
-
       const showFinal = () => {
         heroMotion.intro = 1;
         introDoneRef.current = true;
         document.documentElement.dataset.heroIntro = 'done';
+        unlockPageScroll();
         gsap.set(
           [
             sceneWrapRef.current,
@@ -78,10 +82,13 @@ export function Hero() {
       if (reduced) {
         showFinal();
       } else {
+        // Mark playing BEFORE any paint can show the stage (CSS unlocks on this flag)
         document.documentElement.dataset.heroIntro = 'playing';
+        window.scrollTo(0, 0);
+        getLenisInstance()?.stop();
 
         gsap.set(sceneWrapRef.current, { autoAlpha: 1 });
-        gsap.set(stageRef.current, { autoAlpha: 1 });
+        gsap.set(stageRef.current, { autoAlpha: 1, visibility: 'visible' });
         gsap.set(title, { autoAlpha: 0, scale: 0.985 });
         gsap.set(titleLabelRef.current, { backgroundPosition: '100% 0%' });
 
@@ -109,6 +116,7 @@ export function Hero() {
             heroMotion.intro = 1;
             introDoneRef.current = true;
             document.documentElement.dataset.heroIntro = 'done';
+            unlockPageScroll();
             gsap.set(title, { clearProps: 'transform' });
             gsap.set(copyEls, { clearProps: 'transform' });
             gsap.set(titleLabelRef.current, { backgroundPosition: '100% 0%' });
@@ -140,82 +148,20 @@ export function Hero() {
         );
       }
 
-      ScrollTrigger.create({
-        trigger: section,
-        start: 'top top',
-        end: 'bottom top',
-        scrub: true,
-        onUpdate: (self) => {
-          heroMotion.scroll = self.progress;
-        },
-      });
-
       if (!reduced) {
         gsap.to(stageRef.current, {
-          y: 20,
+          y: 16,
           ease: 'none',
           scrollTrigger: {
             trigger: section,
             start: 'top top',
             end: 'bottom top',
-            scrub: true,
+            scrub: 0.45,
           },
         });
       }
 
-      let prevX = 0;
-      let prevY = 0;
-      let prevT = performance.now();
-
-      const onMove = (e: PointerEvent) => {
-        const rect = section.getBoundingClientRect();
-        const nx = (e.clientX - rect.left) / rect.width - 0.5;
-        const ny = (e.clientY - rect.top) / rect.height - 0.5;
-        const now = performance.now();
-        const dt = Math.max(16, now - prevT) / 1000;
-        const speed = Math.min(2.2, (Math.hypot(nx - prevX, ny - prevY) / dt) * 0.35);
-        heroMotion.mouseX = nx;
-        heroMotion.mouseY = ny;
-        heroMotion.velocity = heroMotion.velocity * 0.7 + speed * 0.3;
-        prevX = nx;
-        prevY = ny;
-        prevT = now;
-      };
-      const onLeave = () => {
-        gsap.to(heroMotion, {
-          mouseX: 0,
-          mouseY: 0,
-          velocity: 0,
-          press: 0,
-          duration: 0.85,
-          ease: 'cinematic',
-        });
-      };
-      const onDown = () => {
-        heroMotion.press = 1;
-      };
-      const onUp = () => {
-        gsap.to(heroMotion, { press: 0, duration: 0.45, ease: 'power2.out' });
-      };
-
-      section.addEventListener('pointermove', onMove, { passive: true });
-      section.addEventListener('pointerleave', onLeave);
-      section.addEventListener('pointerdown', onDown);
-      window.addEventListener('pointerup', onUp);
-      cleanups.push(() => {
-        section.removeEventListener('pointermove', onMove);
-        section.removeEventListener('pointerleave', onLeave);
-        section.removeEventListener('pointerdown', onDown);
-        window.removeEventListener('pointerup', onUp);
-      });
-
-      const decayId = window.setInterval(() => {
-        heroMotion.velocity *= 0.9;
-      }, 50);
-      cleanups.push(() => window.clearInterval(decayId));
-
       return () => {
-        cleanups.forEach((c) => c());
         ScrollTrigger.getAll().forEach((st) => {
           if (st.trigger === section) st.kill();
         });
@@ -298,7 +244,7 @@ export function Hero() {
 
         <p
           ref={roleRef}
-          className="mt-6 font-display text-xl font-medium tracking-tight text-sky-300 sm:mt-7 sm:text-2xl md:text-3xl"
+          className="hero-role mt-6 font-mono text-lg font-medium tracking-[0.1em] text-sky-300/90 sm:mt-7 sm:text-xl md:text-2xl"
         >
           {roles[roleIndex]}
         </p>

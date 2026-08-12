@@ -131,8 +131,8 @@ export function Skills() {
       <div
         className="pointer-events-none absolute inset-0 z-[1]"
         style={{
-          background:
-            'linear-gradient(to bottom, rgba(10,10,15,0.35) 0%, transparent 25%, transparent 75%, rgba(10,10,15,0.25) 100%)',
+            background:
+              'linear-gradient(to bottom, rgba(10,10,15,0.18) 0%, transparent 28%, transparent 72%, rgba(10,10,15,0.16) 100%)',
         }}
       />
 

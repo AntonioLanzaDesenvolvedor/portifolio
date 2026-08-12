@@ -37,7 +37,7 @@ export function SpaceChapter({ children, reduced = false }: SpaceChapterProps) {
           />
         ) : (
           <>
-            <HeroScene reduced={false} count={400} speed={0.5} className="absolute inset-0 h-full w-full" />
+            <HeroScene reduced={false} count={400} speed={0.28} className="absolute inset-0 h-full w-full" />
             <div className="absolute inset-0" style={{ opacity: 0.7 }}>
               <AboutGalaxy
                 transparent

@@ -104,9 +104,11 @@ function orbitPoint(angle: number, o: OrbitLayout, out: THREE.Vector3) {
 function RealEarth({
   dimmed,
   onSelectEarth,
+  mobile = false,
 }: {
   dimmed: boolean;
   onSelectEarth: () => void;
+  mobile?: boolean;
 }) {
   const earth = useRef<THREE.Group>(null);
   const clouds = useRef<THREE.Mesh>(null);
@@ -122,13 +124,19 @@ function RealEarth({
   const specularColor = useMemo(() => new THREE.Color('#666666'), []);
   const emissiveColor = useMemo(() => new THREE.Color('#ffcc88'), []);
 
+  // Slightly fewer segments / anisotropy on mobile — same look, far less GPU thrash while scrolling
+  const earthSeg = mobile ? 40 : 64;
+  const cloudSeg = mobile ? 32 : 48;
+  const glowSeg = mobile ? 24 : 32;
+  const aniso = mobile ? 2 : 8;
+
   useEffect(() => {
     for (const tex of [color, night, cloudMap]) {
       tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = 8;
+      tex.anisotropy = aniso;
     }
-    for (const tex of [bump, spec]) tex.anisotropy = 8;
-  }, [color, bump, night, spec, cloudMap]);
+    for (const tex of [bump, spec]) tex.anisotropy = aniso;
+  }, [color, bump, night, spec, cloudMap, aniso]);
 
   useFrame((_, dt) => {
     if (earth.current) earth.current.rotation.y += dt * (dimmed ? 0.015 : 0.04);
@@ -158,7 +166,7 @@ function RealEarth({
     >
       <group ref={earth}>
         <mesh>
-          <sphereGeometry args={[EARTH_RADIUS, 64, 64]} />
+          <sphereGeometry args={[EARTH_RADIUS, earthSeg, earthSeg]} />
           <meshPhongMaterial
             map={color}
             bumpMap={bump}
@@ -174,7 +182,7 @@ function RealEarth({
       </group>
 
       <mesh ref={clouds} scale={1.015}>
-        <sphereGeometry args={[EARTH_RADIUS, 48, 48]} />
+        <sphereGeometry args={[EARTH_RADIUS, cloudSeg, cloudSeg]} />
         <meshPhongMaterial
           map={cloudMap}
           alphaMap={cloudMap}
@@ -186,7 +194,7 @@ function RealEarth({
       </mesh>
 
       <mesh scale={1.04}>
-        <sphereGeometry args={[EARTH_RADIUS, 48, 48]} />
+        <sphereGeometry args={[EARTH_RADIUS, cloudSeg, cloudSeg]} />
         <meshBasicMaterial
           color="#7ec8ff"
           transparent
@@ -196,7 +204,7 @@ function RealEarth({
         />
       </mesh>
       <mesh scale={1.09}>
-        <sphereGeometry args={[EARTH_RADIUS, 32, 32]} />
+        <sphereGeometry args={[EARTH_RADIUS, glowSeg, glowSeg]} />
         <meshBasicMaterial
           color="#4a9fe0"
           transparent
@@ -208,7 +216,7 @@ function RealEarth({
 
       {dimmed ? (
         <mesh scale={1.12}>
-          <sphereGeometry args={[EARTH_RADIUS, 32, 24]} />
+          <sphereGeometry args={[EARTH_RADIUS, glowSeg, Math.max(16, glowSeg - 8)]} />
           <meshBasicMaterial color="#05070c" transparent opacity={0.55} depthWrite={false} />
         </mesh>
       ) : null}
@@ -874,9 +882,14 @@ function CameraRig({
 }
 
 /** Pull camera back + shrink system on narrow canvases so orbits stay in frame. */
-function AdaptiveBeltFrame({ children }: { children: ReactNode }) {
-  const { camera, size } = useThree();
-  const mobile = isMobileLayout(size.width);
+function AdaptiveBeltFrame({
+  children,
+  mobile,
+}: {
+  children: ReactNode;
+  mobile: boolean;
+}) {
+  const { camera } = useThree();
 
   useLayoutEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
@@ -900,6 +913,7 @@ function BeltScene({
   onSelect,
   onHover,
   onClear,
+  mobile,
 }: {
   items: ProjectItem[];
   selectedId: string | null;
@@ -907,11 +921,11 @@ function BeltScene({
   onSelect: (id: string) => void;
   onHover: (id: string | null) => void;
   onClear: () => void;
+  /** matchMedia — avoid flipping layout when R3F briefly reports size 0 on scroll */
+  mobile: boolean;
 }) {
   const controlsRef = useRef<ControlsRef | null>(null);
   const [spinEnabled, setSpinEnabled] = useState(true);
-  const size = useThree((s) => s.size);
-  const mobile = isMobileLayout(size.width);
   const focusMode = selectedId != null;
 
   return (
@@ -926,7 +940,7 @@ function BeltScene({
         ref={controlsRef}
         makeDefault
         enableDamping
-        dampingFactor={0.08}
+        dampingFactor={mobile ? 0.12 : 0.08}
         enablePan={false}
         enableZoom={false}
         minDistance={mobile ? 10.2 : 8.8}
@@ -944,9 +958,9 @@ function BeltScene({
 
       <CameraRig controlsRef={controlsRef} mobile={mobile} />
 
-      <AdaptiveBeltFrame>
+      <AdaptiveBeltFrame mobile={mobile}>
         <Suspense fallback={null}>
-          <RealEarth dimmed={focusMode} onSelectEarth={onClear} />
+          <RealEarth dimmed={focusMode} onSelectEarth={onClear} mobile={mobile} />
         </Suspense>
 
         <OrbitGuides
@@ -1268,6 +1282,9 @@ export function ProjectsSatelliteBelt({
   const [inView, setInView] = useState(true);
   const [reduced, setReduced] = useState(false);
   const [ready, setReady] = useState(false);
+  const [mobile, setMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
+  );
 
   const selected = useMemo(
     () => items.find((p) => p.id === selectedId) ?? null,
@@ -1294,6 +1311,14 @@ export function ProjectsSatelliteBelt({
   useEffect(() => {
     setReduced(prefersReduced());
     setReady(true);
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
   useEffect(() => {
@@ -1342,13 +1367,14 @@ export function ProjectsSatelliteBelt({
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
+    // Mobile: wider margin so URL-bar / IO jitter doesn't flip frameloop → blank flash
     const io = new IntersectionObserver(
       ([entry]) => setInView(entry.isIntersecting),
-      { rootMargin: '100px', threshold: 0.05 },
+      { rootMargin: mobile ? '240px' : '100px', threshold: 0.01 },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [mobile]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -1424,9 +1450,14 @@ export function ProjectsSatelliteBelt({
         )}
       >
         <Canvas
-          dpr={[1, 1.5]}
+          dpr={mobile ? 1 : [1, 1.5]}
+          // scroll:false stops R3F remeasuring every scroll tick (blank flash on mobile)
+          resize={{
+            scroll: false,
+            debounce: mobile ? { scroll: 0, resize: 200 } : { scroll: 0, resize: 0 },
+          }}
           gl={{
-            antialias: true,
+            antialias: !mobile,
             alpha: true,
             powerPreference: 'high-performance',
             stencil: false,
@@ -1450,6 +1481,7 @@ export function ProjectsSatelliteBelt({
             onSelect={onSelect}
             onHover={setHoveredId}
             onClear={close}
+            mobile={mobile}
           />
         </Canvas>
 
